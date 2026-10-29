@@ -11,7 +11,7 @@ on:
         description: "FiestaBoard ref to test against (branch, tag or SHA)"
         required: false
         # Keep in step with `ref:` below.
-        default: 071121a683b5b02ad1263bc315a86a98b49e9794
+        default: v10.2.0
 
 permissions:
   contents: read
@@ -30,9 +30,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Fiestaboard/FiestaBoard
-          # Pin the tested small-LED support from core PR #2391 while its
-          # >=10.2.0 release is pending. Switch to that release once available.
-          ref: ${{ inputs.core_ref || '071121a683b5b02ad1263bc315a86a98b49e9794' }}
+          # First released core with the TC001 small-LED floor and UI support.
+          ref: ${{ inputs.core_ref || 'v10.2.0' }}
           path: fiestaboard-core
 
       - uses: actions/setup-python@v5

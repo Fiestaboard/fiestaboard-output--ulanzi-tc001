@@ -147,14 +147,10 @@ TC001.
 
 ## Development
 
-Tests run against a FiestaBoard core checkout that has the 1 × 5 LED floor
-(the pending [core PR #2391](https://github.com/Fiestaboard/FiestaBoard/pull/2391),
-with [FiestaUI PR #372](https://github.com/Fiestaboard/FiestaUI/pull/372) for
-the web preview). As of 2026-10-29, core `main` is 10.1.20 and does not
-carry that floor. CI temporarily pins the tested core PR revision
-`071121a683b5b02ad1263bc315a86a98b49e9794`; its `core_ref` workflow input
-can test a different branch, tag, or commit. This test dependency does not
-make released FiestaBoard 10.1.20 compatible:
+Tests run against FiestaBoard **10.2.0**, the first released core with the
+1 × 5 LED floor and matching FiestaUI 8.15.0 previews. CI pins `v10.2.0`;
+its `core_ref` workflow input can test another branch, tag, or commit.
+FiestaBoard 10.1.20 and earlier are not compatible.
 
 ```sh
 ./run_tests.sh /path/to/FiestaBoard
