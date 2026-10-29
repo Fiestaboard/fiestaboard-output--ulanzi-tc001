@@ -1,0 +1,59 @@
+[
+  {
+    "id": "ulanzi_tc001",
+    "label": "Ulanzi TC001 (AWTRIX NG)",
+    "technology": "led_matrix",
+    "family": "awtrix_ng",
+    "geometry": {
+      "kind": "pixels",
+      "width": 32,
+      "height": 8
+    },
+    "color": {
+      "kind": "rgb",
+      "bitDepth": 24
+    },
+    "charset": "led_3x5",
+    "animation": {
+      "delivery": "stream",
+      "maxFps": 5,
+      "notes": "The Ulanzi TC001 running AWTRIX NG has a 32x8 RGB matrix, which is the model's size: one row of 8 characters in the 3x5 face, or one row of 5 in the 5x7 face. The TC001 has no layouts, so each frame is one PUT /api/v1/apps/pushed/{name} with a single bitmap draw of 32x8 base64 RGB888 (about 1.1 KB of JSON including the draw command). The request body is limited to 8192 bytes of JSON on this device. The docs say a pushed app that is on screen shows a replacement at once. maxFps 5 is a conservative starting point, not measured. Pushed apps live in RAM only and vanish when the clock restarts; GET /api/v1/device reports uptimeSeconds, which the plugin watches to resend the page.",
+      "sources": [
+        "https://github.com/Blueforcer/awtrix-ng/blob/main/docs/api/openapi.yaml (PUT /api/v1/apps/pushed/{name}, PUT /api/v1/apps/active, GET /api/v1/device)",
+        "https://github.com/Blueforcer/awtrix-ng/blob/main/docs/reference/payload.md (draw commands: bitmap)",
+        "https://github.com/Blueforcer/awtrix-ng/blob/main/docs/guides/pushed-apps.md (an app on screen shows a change at once; pushed apps are RAM only)",
+        "https://github.com/Blueforcer/awtrix-ng/blob/main/docs/reference/limits.md (8192-byte JSON limit on the TC001)"
+      ]
+    },
+    "font": "3x5",
+    "layoutOptions": {
+      "tileGap": {
+        "allowed": [
+          "gap",
+          "fill"
+        ],
+        "default": "gap"
+      },
+      "blockPadding": {
+        "allowed": [
+          0,
+          1
+        ],
+        "default": 0
+      },
+      "font": {
+        "allowed": [
+          "3x5",
+          "5x7"
+        ],
+        "default": "3x5"
+      }
+    },
+    "appearance": {
+      "pixelShape": "square",
+      "dotRatio": 0.82,
+      "offColor": "#171717",
+      "substrateColor": "#0a0a0a"
+    }
+  }
+]
