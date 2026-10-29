@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import time
 
 import pytest
+import requests
 from plugins.ulanzi_tc001 import FADE_STEPS, PANEL_HEIGHT, PANEL_WIDTH, SEQUENCE_MAX_FRAMES
 
 from src.led.transition_registry import ResolvedLedTransition
@@ -23,18 +25,45 @@ def transition(kind: str, **fields) -> ResolvedLedTransition:
     return ResolvedLedTransition(id=kind, spec=LedTransitionSpec(kind=kind, **fields), source="explicit")
 
 
-def test_a_still_is_one_push_of_a_native_size_layout(clock, make_plugin):
+def test_a_still_is_one_push_of_one_app(clock, make_plugin):
     result = make_plugin(show_on_change=False).write(grid(1), native=None, cancel=CancelToken())
 
     assert (result.success, result.was_sent) == (True, True)
     assert clock.calls() == [("PUT", PUSHED + "FiestaBoard")]
     body = clock.pushes()[0]
-    region = body["layout"]["regions"][0]
-    assert body["layout"]["version"] == 1
-    assert region["box"] == [0, 0, PANEL_WIDTH, PANEL_HEIGHT]
-    assert region["draw"][0][:5] == ["bitmap", 0, 0, PANEL_WIDTH, PANEL_HEIGHT]
     assert MockAwtrix.bitmap(body) == render(grid(1))
+    assert len(MockAwtrix.bitmap(body)) == PANEL_WIDTH * PANEL_HEIGHT * 3 == 768
     assert "durationMs" not in body
+
+
+def test_a_frame_is_one_bitmap_draw_without_a_layout(clock, make_plugin):
+    make_plugin(show_on_change=False, duration_s=12).write(grid(1), native=None, cancel=CancelToken())
+
+    body = clock.pushes()[0]
+    assert "layout" not in body
+    assert set(body) == {"draw", "durationMs"}
+    assert body["durationMs"] == 12_000
+    assert len(body["draw"]) == 1
+    assert body["draw"][0][:5] == ["bitmap", 0, 0, 32, 8]
+    assert isinstance(body["draw"][0][5], str)
+
+
+def test_a_frame_body_fits_the_8192_byte_json_limit(make_plugin):
+    # A busy full-colour frame: every pixel a different colour, no base64 padding luck.
+    pixels = bytes((x * 7 + y * 13 + c * 31) % 256 for y in range(8) for x in range(32) for c in range(3))
+    body = make_plugin(duration_s=30)._payload(pixels)
+    assert len(json.dumps(body).encode()) < 8192
+
+
+def test_the_mock_enforces_what_an_esp32_enforces(clock):
+    base = f"http://{clock.host}"
+    layout = requests.put(base + PUSHED + "x", json={"layout": {"version": 1, "regions": []}}, timeout=2)
+    assert layout.status_code == 400
+    big = requests.put(base + PUSHED + "x", json={"text": "a" * 9000}, timeout=2)
+    assert big.status_code == 413
+    assert requests.get(base + "/api/v1/capabilities", timeout=2).json()["display"]["width"] == 32
+    assert requests.get(base + "/api/v1/settings", timeout=2).json()["panelWidth"] == 32
+    assert clock.apps == {}
 
 
 def test_show_on_change_switches_to_the_board_after_a_still(clock, make_plugin):
@@ -252,5 +281,3 @@ def test_an_empty_sequence_sends_nothing(clock, make_plugin, frames):
     assert (result.success, result.was_sent) == (True, False)
     assert clock.requests == []
 
-
-pytestmark = __import__("pytest").mark.skip(reason="rewritten in Task 6")

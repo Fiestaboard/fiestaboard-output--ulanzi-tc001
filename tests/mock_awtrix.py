@@ -1,10 +1,14 @@
-"""A stand-in Ulanzi TC002 running AWTRIX NG on loopback, for tests.
+"""A stand-in ESP32 AWTRIX NG clock (an Ulanzi TC001, 32 x 8) on loopback, for tests.
 
-It answers the three routes the plugin uses the way the AWTRIX NG HTTP API
-documents them, records every request, and can misbehave on purpose:
+It answers the routes the plugin uses the way the AWTRIX NG HTTP API
+documents them for an ESP32 build, records every request, and can misbehave on
+purpose:
 
-- ``GET /api/v1/device``: the device state (``boardType``, ``uid``,
-  ``uptimeSeconds``, ``currentApp``, ...);
+- ``GET /api/v1/device``: the device state (``boardType`` ``"awtrixng"``,
+  ``uid``, ``uptimeSeconds``, ``currentApp``, ...);
+- ``GET /api/v1/capabilities``: ``display.width`` / ``display.height`` (32 x 8)
+  and ``GET /api/v1/settings``: ``panelWidth`` / ``panels``: where the openapi
+  schema puts the panel size (``DeviceState`` has no size field);
 - ``PUT /api/v1/apps/pushed/{name}``: stores the app (it joins the rotation);
 - ``PUT /api/v1/apps/active``: makes a stored app current, ``404`` otherwise.
 
@@ -33,6 +37,11 @@ from typing import Any, Callable
 PUSHED = "/api/v1/apps/pushed/"
 ACTIVE = "/api/v1/apps/active"
 DEVICE = "/api/v1/device"
+CAPABILITIES = "/api/v1/capabilities"
+SETTINGS = "/api/v1/settings"
+
+#: ``JSON request body (HTTP)`` on an ESP32 (docs/reference/limits.md).
+MAX_BODY = 8192
 
 
 class MockAwtrix:
@@ -40,7 +49,9 @@ class MockAwtrix:
         self.requests: list[tuple[str, str, Any]] = []
         self.mode = "ok"
         self.fail_paths: tuple[str, ...] = ()
-        self.board_type = "tc002"
+        self.board_type = "awtrixng"
+        self.panel_width = 32
+        self.panels = 1
         self.password: str | None = None
         self.on_request: Callable[[str, str, Any, int], None] | None = None
         #: Pushed apps by name (as stored, case kept) -> last body.
@@ -63,7 +74,9 @@ class MockAwtrix:
                     body = json.loads(raw) if raw else None
                 except ValueError:
                     body = {"_unparsed": raw.decode("latin-1")}
-                status, answer = mock._answer(self.command, self.path, body, self.headers.get("Authorization"))
+                status, answer = mock._answer(
+                    self.command, self.path, body, self.headers.get("Authorization"), size=length
+                )
                 if status is None:
                     mock._release.wait(30)
                     return
@@ -121,7 +134,7 @@ class MockAwtrix:
     @staticmethod
     def bitmap(body: Any) -> bytes:
         """The RGB888 one push draws."""
-        command = body["layout"]["regions"][0]["draw"][0]
+        command = body["draw"][0]
         assert command[0] == "bitmap"
         return base64.b64decode(command[5])
 
@@ -131,7 +144,9 @@ class MockAwtrix:
 
     # --- behaviour -------------------------------------------------------------------------
 
-    def _answer(self, method: str, path: str, body: Any, authorization: str | None) -> tuple[int | None, Any]:
+    def _answer(
+        self, method: str, path: str, body: Any, authorization: str | None, size: int = 0
+    ) -> tuple[int | None, Any]:
         with self._lock:
             index = len(self.requests)
             self.requests.append((method, path, body))
@@ -158,7 +173,15 @@ class MockAwtrix:
                 "uptimeSeconds": self.uptime(),
                 "currentApp": self.current_app,
             }
+        if size > MAX_BODY:
+            return 413, {"error": {"code": "payloadTooLarge", "message": "JSON body over 8192 bytes"}}
+        if method == "GET" and path == CAPABILITIES:
+            return 200, {"display": {"width": self.panel_width * self.panels, "height": 8}}
+        if method == "GET" and path == SETTINGS:
+            return 200, {"panelWidth": self.panel_width, "panels": self.panels}
         if method == "PUT" and path.startswith(PUSHED):
+            if isinstance(body, dict) and "layout" in body:
+                return 400, {"error": {"code": "invalidJson", "message": "layout is not supported on this board"}}
             if not isinstance(body, dict) or not body:
                 return 422, {"error": {"code": "validationFailed", "message": "a JSON body is required"}}
             with self._lock:

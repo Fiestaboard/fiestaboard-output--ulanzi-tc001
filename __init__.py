@@ -1,10 +1,10 @@
 """AWTRIX NG output plugin for FiestaBoard: a Ulanzi TC001 as a board.
 
-Note: the rendering, payload and device-recognition sections below are still
-TC002-shaped (52 x 17 model, layout push) and are rewritten by Tasks 5-7; only
-the names and `PANEL_WIDTH`/`PANEL_HEIGHT` (32 x 8) are the TC001's so far.
+Note: the device-recognition and discovery sections below are still
+TC002-shaped and are rewritten by Task 7; rendering and the push payload are
+the TC001's (32 x 8, one bitmap draw).
 
-Drives one TC002 running AWTRIX NG over its local HTTP API. The board is a
+Drives one TC001 running AWTRIX NG over its local HTTP API. The board is a
 **pushed app** in the clock's rotation (``PUT /api/v1/apps/pushed/{name}``),
 so the clock's own apps and scripts keep running beside it. Core owns the
 policy — the send floor (``min_interval_ms``, 1 s between writes), dedupe,
@@ -20,6 +20,15 @@ What the AWTRIX NG documentation (1.2.2) settles:
   core binds the plugin to the model with the board's chosen face
   (``output_config.font``) swapped in, and ``layout`` follows it. Each frame is
   one 32 x 8 RGB888 bitmap.
+- **A frame is one plain pushed app**, following AWTRIX NG's
+  ``docs/api/openapi.yaml`` (``PUT /api/v1/apps/pushed/{name}``) and
+  ``docs/reference/payload.md`` (section "Draw commands"):
+  ``{"draw": [["bitmap", 0, 0, 32, 8, "<base64 RGB888>"]], "durationMs": n}``.
+  There is no ``layout`` key (TC002-only in the schema; an ESP32 build has no
+  layouts). The base64 body is about 1.1 kB, well inside the ESP32's
+  8192-byte JSON request limit (``docs/reference/limits.md``). The double-size
+  drawing of ``enlargeApps`` exists only on a TC002 (``x-only: [tc002]``), so
+  positions count in real pixels here.
 - **A replacement shows at once** while the app is on screen, so every LED
   transition core plans is streamed as paced single frames at up to
   :data:`STREAM_MAX_FPS` (a conservative rate, not yet measured on a clock).
@@ -125,9 +134,6 @@ UPTIME_SLACK_S = 30.0
 #: The app name a board shows up as when none is set.
 DEFAULT_APP_NAME = "FiestaBoard"
 _APP_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-
-#: The region id of the one region a frame's layout has.
-REGION_ID = "fiestaboard"
 
 DEVICE_PATH = "/api/v1/device"
 PUSHED_PATH = "/api/v1/apps/pushed/"
@@ -408,11 +414,7 @@ class AwtrixNGTC001(OutputPluginBase):
 
     def render(self, frame: Sequence[Sequence[Any]]) -> bytes:
         """*frame* as the panel's 32 x 8 RGB888, row-major from the top left."""
-        return self._panel(rasterize(self.layout(frame)))
-
-    @staticmethod
-    def _panel(led_frame: Any) -> bytes:
-        return led_frame.pixels
+        return rasterize(self.layout(frame)).pixels
 
     # --- the device seam ----------------------------------------------------------------------
 
@@ -458,20 +460,14 @@ class AwtrixNGTC001(OutputPluginBase):
         return body
 
     def _payload(self, pixels: bytes) -> dict[str, Any]:
-        """One frame as a pushed app: a native-size layout drawing one bitmap."""
+        """One frame as a pushed app: a single full-screen ``bitmap`` draw.
+
+        No ``layout`` key (an ESP32 build has no layouts, and rejects it); the
+        768 RGB888 bytes are base64 (1024 characters), far under the 8192-byte
+        JSON body limit.
+        """
         data = base64.b64encode(pixels).decode("ascii")
-        payload: dict[str, Any] = {
-            "layout": {
-                "version": 1,
-                "regions": [
-                    {
-                        "id": REGION_ID,
-                        "box": [0, 0, PANEL_WIDTH, PANEL_HEIGHT],
-                        "draw": [["bitmap", 0, 0, PANEL_WIDTH, PANEL_HEIGHT, data]],
-                    }
-                ],
-            }
-        }
+        payload: dict[str, Any] = {"draw": [["bitmap", 0, 0, PANEL_WIDTH, PANEL_HEIGHT, data]]}
         if self._duration_ms is not None:
             payload["durationMs"] = self._duration_ms
         return payload
@@ -616,8 +612,8 @@ class AwtrixNGTC001(OutputPluginBase):
             spec = replace(spec, duration_ms=STREAM_TRANSITION_MS)
         planned = plan_transition(self.layout(before), self.layout(after), spec)
         # Frame 0 is *before*, which the board already shows.
-        frames = [self._panel(f) for f in transition_frames(planned, fps=self._stream_fps())][1:]
-        target = self._panel(planned.to_frame)
+        frames = [f.pixels for f in transition_frames(planned, fps=self._stream_fps())][1:]
+        target = planned.to_frame.pixels
         if not frames or frames[-1] != target:
             frames.append(target)
         return self._play(frames, [0.0] * len(frames), cancel)
