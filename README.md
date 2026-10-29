@@ -20,19 +20,40 @@ the **Text size** setting.
 - A Ulanzi TC001 running AWTRIX NG, on the same network as FiestaBoard. See
   [AWTRIX NG](https://github.com/Blueforcer/awtrix-ng) for how to install it
   on the clock.
-- Nothing to install on the clock, and no cloud service or account
+- Nothing else to install on the clock, and no cloud service or account
 
 **AWTRIX NG only.** AWTRIX 3 and Ulanzi's own firmware are not supported.
 
 ## Quick start
 
-1. Install AWTRIX NG on the clock (see its documentation) and join the clock to your Wi-Fi.
-2. In FiestaBoard, add an output board and choose **Ulanzi TC001 (AWTRIX NG)**.
-3. Press **Find my clock**, or type its IP address (find the address in your
+1. In FiestaBoard, open **Displays → Marketplace** and install **Ulanzi
+   TC001 (AWTRIX NG)**. Where it is not listed yet, paste
+   `https://github.com/Fiestaboard/fiestaboard-output--ulanzi-tc001` under
+   **Bring your own display** (or use **Integrations → Marketplace → Add from
+   Git**). Or from a terminal:
+
+   ```sh
+   curl -X POST http://<fiestaboard>:4420/api/plugins/install \
+     -H "Content-Type: application/json" \
+     -d '{"repository": "https://github.com/Fiestaboard/fiestaboard-output--ulanzi-tc001"}'
+   ```
+
+2. Install AWTRIX NG on the clock (see its documentation) and join the clock
+   to your Wi-Fi.
+3. Add an output board and choose **Ulanzi TC001 (AWTRIX NG)**.
+4. Press **Find my clock**, or type its IP address (find the address in your
    router or the clock's web UI).
-4. Press **Test connection**. A TC001 answers
+5. Press **Test connection**. A TC001 answers
    `Connected to the TC001 at <address> (AWTRIX NG <version>).`
-5. Pick a **Text size** and save. The board joins the clock's rotation.
+6. Pick a **Text size** and save. The board joins the clock's rotation.
+
+## Troubleshooting
+
+If **Test connection** says the clock answered, but not like AWTRIX NG:
+
+- Check that the address is an AWTRIX NG clock, not AWTRIX 3 or Ulanzi's firmware.
+- Update AWTRIX NG to a current release: older ones do not report their
+  panel (`display` in `/api/v1/capabilities`).
 
 ## Text size and pages for the clock
 
@@ -58,8 +79,8 @@ transition (flip, slide, wipe, fade) to move between pages.
 - Pushed apps live in the clock's RAM. FiestaBoard notices a restart (the
   clock's uptime goes back) and sends the page again.
 - Only the TC001 is accepted. A Ulanzi TC002 is refused and pointed at its own
-  plugin, and an AWTRIX NG clock whose panel is not 32 pixels wide is refused
-  with its width.
+  plugin, and an AWTRIX NG clock whose panel is not 32 × 8 is refused
+  with its size.
 
 ## Settings
 
@@ -79,7 +100,7 @@ transition (flip, slide, wipe, fade) to move between pages.
 
 Searches your local network (the one you browse FiestaBoard from, then the
 one FiestaBoard is on, or a network you enter such as `192.0.2.0/24`) for
-AWTRIX NG clocks, and lists the ones that are 32 pixels wide. A clock whose
+AWTRIX NG clocks, and lists the ones whose panel is 32 × 8. A clock whose
 web UI asks for a password cannot be found this way: type its address.
 
 ## Test connection
@@ -96,6 +117,12 @@ restarts, or you delete it:
 curl -X DELETE http://192.0.2.60/api/v1/apps/FiestaBoard
 ```
 
+If the clock's web UI asks for a password:
+
+```sh
+curl -u <user>:<password> -X DELETE http://192.0.2.60/api/v1/apps/FiestaBoard
+```
+
 ## Verify on your clock
 
 These follow the documentation and are not yet confirmed on a TC001.
@@ -105,12 +132,14 @@ These follow the documentation and are not yet confirmed on a TC001.
 | A page draws as a full 32 × 8 bitmap, unscaled, with no cut or offset | Every light matches the preview |
 | `GET /api/v1/device` | `boardType` is `awtrixng`; `GET /api/v1/capabilities` has `display.width` 32 and `display.height` 8 |
 | A streamed transition | Runs smoothly at the 5 frames a second the plugin sends; try `tools/try_device.py` and read the timings |
-| The `enlargeApps` setting | Has no effect on this board: the TC001 draws real pixels |
+
+The AWTRIX NG `enlargeApps` setting is TC002-only and does not apply to the
+TC001.
 
 ## Development
 
 Tests run against a FiestaBoard core checkout that has the 1 × 5 LED floor
-(branch `feat/small-led-boards`, `main` from 10.2.0):
+(`main` from 10.2.0):
 
 ```sh
 ./run_tests.sh /path/to/FiestaBoard

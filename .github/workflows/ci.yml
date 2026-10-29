@@ -11,8 +11,7 @@ on:
         description: "FiestaBoard ref to test against (branch, tag or SHA)"
         required: false
         # Keep in step with `ref:` below.
-        # Switch to main once FiestaBoard >=10.2.0 is released.
-        default: feat/small-led-boards
+        default: main
 
 permissions:
   contents: read
@@ -31,9 +30,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Fiestaboard/FiestaBoard
-          # The 1 x 5 LED floor this plugin needs is on feat/small-led-boards.
-          # Switch to main once FiestaBoard >=10.2.0 is released.
-          ref: ${{ inputs.core_ref || 'feat/small-led-boards' }}
+          # Core main carries the 1 x 5 LED floor this plugin needs, from the
+          # merge of Fiestaboard/FiestaBoard's small-LED-boards PR
+          # (FiestaBoard >=10.2.0).
+          ref: ${{ inputs.core_ref || 'main' }}
           path: fiestaboard-core
 
       - uses: actions/setup-python@v5

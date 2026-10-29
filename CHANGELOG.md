@@ -14,5 +14,5 @@ AWTRIX NG. Adapted from Oliver Rummeyer's Ulanzi TC002 plugin (0.2.0).
 - Tells a TC001 apart: `boardType` `awtrixng` and a 32 × 8 panel
   (`/api/v1/capabilities`). A TC002 and a wider ESP32 build are refused with a
   message that says why.
-- Find my clock lists only 32-wide AWTRIX NG clocks.
+- Find my clock and Test connection accept only a 32 × 8 AWTRIX NG panel.
 - Not yet tried on a real TC001; see "Verify on your clock" in the README.

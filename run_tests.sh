@@ -4,8 +4,8 @@
 #        (default core path: ../FiestaBoard)
 #
 # The core checkout must carry the output-plugin API (src/outputs/plugin_base.py)
-# (self.http, write_transition): the output-plugins stack top or `next`, or
-# FiestaBoard 10.0.0 or later once it is tagged.
+# and the 1 x 5 LED floor from the small-LED-boards PR: core `main` from
+# FiestaBoard 10.2.0 on.
 set -euo pipefail
 
 CORE="${1:-../FiestaBoard}"

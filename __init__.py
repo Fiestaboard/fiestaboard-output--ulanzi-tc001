@@ -776,7 +776,10 @@ class AwtrixNGTC001(OutputPluginBase):
             )
         if board_type != ESP32:
             return self._failed(
-                "bad_response", f"{where} answered, but not like AWTRIX NG.", "no boardType", "Check that this address is an AWTRIX NG clock."
+                "bad_response",
+                f"{where} answered, but not like AWTRIX NG.",
+                f"boardType {board_type!r}" if board_type is not None else "no boardType",
+                "Check that this address is an AWTRIX NG clock.",
             )
         try:
             width, height = self._panel_size()
@@ -785,7 +788,7 @@ class AwtrixNGTC001(OutputPluginBase):
         if (width, height) != (PANEL_WIDTH, PANEL_HEIGHT):
             return self._failed(
                 "bad_response",
-                f"{where} is an AWTRIX NG clock {width} pixels wide; this display draws on the TC001's {PANEL_WIDTH} x {PANEL_HEIGHT}.",
+                f"{where} is an AWTRIX NG clock {width} x {height}; this display draws on the TC001's {PANEL_WIDTH} x {PANEL_HEIGHT}.",
                 f"display {width} x {height}",
                 "Check the panel settings of the clock; this display is for a single 32 x 8 panel.",
             )
@@ -821,7 +824,11 @@ class AwtrixNGTC001(OutputPluginBase):
             return self._failed(failure, f"{where} answered with {exc}.", str(exc), "Check that this address is an AWTRIX NG clock.")
         if isinstance(exc, AwtrixBadResponse):
             return self._failed(
-                "bad_response", f"{where} answered, but not like AWTRIX NG.", str(exc), "Check that this address is an AWTRIX NG clock."
+                "bad_response",
+                f"{where} answered, but not like AWTRIX NG.",
+                str(exc),
+                "Check that this address is an AWTRIX NG clock.",
+                "Update AWTRIX NG to a current release: older ones do not report their panel size.",
             )
         return self._failed("unreachable", f"Could not reach {where}.", str(exc), "Check the address.")
 

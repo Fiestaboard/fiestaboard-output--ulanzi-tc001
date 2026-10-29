@@ -94,3 +94,11 @@ def test_nothing_is_squeezed_the_layout_is_the_panel():
 
     assert not hasattr(module, "squeeze")
     assert not hasattr(module, "GAP_ROW")
+
+
+def test_rich_cells_and_codes_draw_the_same_page():
+    from src.plugins import cells_from_codes
+
+    plugin = build({"host": "192.0.2.10"})
+    codes = [[8, 9, 0, 63, 1, 2, 3, 4]]
+    assert plugin.render(codes) == plugin.render(cells_from_codes(codes))

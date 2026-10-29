@@ -31,19 +31,20 @@ def test_a_wider_esp32_build_is_refused(clock, make_plugin):
     result = make_plugin().check_connection()
     assert not result.success and result.failure == "bad_response"
     assert result.message == (
-        f"{clock.host} is an AWTRIX NG clock 64 pixels wide; this display draws on the TC001's 32 x 8."
+        f"{clock.host} is an AWTRIX NG clock 64 x 8; this display draws on the TC001's 32 x 8."
     )
 
 
 def test_two_panels_of_32_are_a_wider_build_too(clock, make_plugin):
     clock.panels = 2
-    assert "64 pixels wide" in make_plugin().check_connection().message
+    assert "64 x 8;" in make_plugin().check_connection().message
 
 
 def test_an_unknown_board_type_is_not_like_awtrix_ng(clock, make_plugin):
     clock.board_type = "esp8266"
     result = make_plugin().check_connection()
     assert not result.success and result.message.endswith("answered, but not like AWTRIX NG.")
+    assert result.error == "boardType 'esp8266'"
 
 
 @pytest.mark.parametrize("fault", ["no_display", "not_json"])
@@ -52,6 +53,7 @@ def test_capabilities_without_a_display_are_not_like_awtrix_ng(clock, make_plugi
     result = make_plugin().check_connection()
     assert not result.success and result.failure == "bad_response"
     assert result.message == f"{clock.host} answered, but not like AWTRIX NG."
+    assert any("Update AWTRIX NG" in step for step in result.troubleshooting)
 
 
 def test_a_capabilities_500_is_a_server_error(clock, make_plugin):
