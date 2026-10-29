@@ -13,6 +13,7 @@ never runs it. It does exactly two things, then stops:
 
 It first checks the connection (``GET /api/v1/device`` and
 ``/api/v1/capabilities``: an AWTRIX NG clock whose panel is 32 x 8), then
+stops without writing if that check fails. Otherwise it
 prints each HTTP request — method, path, how long it took, the HTTP status
 and the clock's answer (never the pixel data) — so the stream rate can be
 judged against what the panel shows. The app stays on the clock until it
@@ -109,6 +110,12 @@ def run(config: dict[str, Any], *, pause_s: float = 5.0, transition: str | None 
     steps = []
     check = plugin.check_connection()
     steps.append({"step": "check_connection", "s": 0, "result": {"success": check.success, "message": check.message}})
+    if not check.success:
+        plugin.close()
+        recorder.session.close()
+        report = {"host": plugin.host, "app": plugin.app_name, "steps": steps, "calls": recorder.calls}
+        _print(report, out)
+        return report
 
     t = time.monotonic()
     result = plugin.write_cells(first, native=None, cancel=CancelToken())
@@ -128,6 +135,7 @@ def run(config: dict[str, Any], *, pause_s: float = 5.0, transition: str | None 
         }
     )
     plugin.close()
+    recorder.session.close()
 
     report = {"host": plugin.host, "app": plugin.app_name, "steps": steps, "calls": recorder.calls}
     _print(report, out)

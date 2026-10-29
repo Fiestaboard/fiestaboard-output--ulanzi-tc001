@@ -9,10 +9,11 @@ The TC001 is a 32 × 8 pixel clock: one row of 8 characters in the small
 (3×5) text size, or one row of 5 in the large (5×7) one. Pick the size with
 the **Text size** setting.
 
-> **Not yet tried on a real TC001 (0.1.0).** Everything here follows the
-> AWTRIX NG documentation and was tested against a mock clock. The
-> [Verify on your clock](#verify-on-your-clock) table lists what still needs a
-> real device.
+> **Development preview (0.1.0).** Direct hardware tests on AWTRIX NG 1.2.2
+> matched all 256 framebuffer pixels for RGB edge patterns and both fonts.
+> FiestaBoard integration still requires the pending small-LED support;
+> 10.1.20 cannot create this clock's one-row board. See
+> [Verify on your clock](#verify-on-your-clock) for evidence and remaining checks.
 
 ## Requirements
 
@@ -125,13 +126,21 @@ curl -u <user>:<password> -X DELETE http://192.0.2.60/api/v1/apps/FiestaBoard
 
 ## Verify on your clock
 
-These follow the documentation and are not yet confirmed on a TC001.
+Checked on a real TC001 running AWTRIX NG 1.2.2 on 2026-10-29, using
+the standalone plugin with core's small-LED branch. These are HTTP and
+device-framebuffer checks, not a physical inspection of the LEDs or a
+completed FiestaBoard installation.
 
-| Check | Expected |
+| Check | Result |
 |---|---|
-| A page draws as a full 32 × 8 bitmap, unscaled, with no cut or offset | Every light matches the preview |
-| `GET /api/v1/device` | `boardType` is `awtrixng`; `GET /api/v1/capabilities` has `display.width` 32 and `display.height` 8 |
-| A streamed transition | Runs smoothly at the 5 frames a second the plugin sends; try `tools/try_device.py` and read the timings |
+| Full 32 × 8 RGB bitmap, all four edges, small and large text | `/api/v1/display/screen` matched all 256 expected pixels in every case |
+| Device identity | `boardType` is `awtrixng`, version `1.2.2`; capabilities report 32 × 8 |
+| Streamed flip transition | All 13 frame requests accepted; most took 53–131 ms, one took 1122 ms. Smooth sustained 5 fps is not established |
+| Recovery after one simulated transport failure | Poll requested a resend; the real device's recovered frame matched all 256 pixels |
+| Physical LEDs, real power cycle, installed config persistence | Still need verification |
+
+The diagnostic tool stops after a failed connection or compatibility check,
+without writing to the device.
 
 The AWTRIX NG `enlargeApps` setting is TC002-only and does not apply to the
 TC001.
@@ -139,7 +148,12 @@ TC001.
 ## Development
 
 Tests run against a FiestaBoard core checkout that has the 1 × 5 LED floor
-(`main` from 10.2.0):
+(the pending [core PR #2391](https://github.com/Fiestaboard/FiestaBoard/pull/2391),
+with [FiestaUI PR #372](https://github.com/Fiestaboard/FiestaUI/pull/372) for
+the web preview). As of 2026-10-29, core `main` is 10.1.20 and does not
+carry that floor. CI's default `main` target will therefore remain blocked
+until the dependency lands; use its `core_ref` workflow input to test the
+small-LED branch explicitly:
 
 ```sh
 ./run_tests.sh /path/to/FiestaBoard

@@ -15,4 +15,9 @@ AWTRIX NG. Adapted from Oliver Rummeyer's Ulanzi TC002 plugin (0.2.0).
   (`/api/v1/capabilities`). A TC002 and a wider ESP32 build are refused with a
   message that says why.
 - Find my clock and Test connection accept only a 32 × 8 AWTRIX NG panel.
-- Not yet tried on a real TC001; see "Verify on your clock" in the README.
+- Hardware checks on AWTRIX NG 1.2.2: all 256 framebuffer pixels match for
+  RGB edges, both fonts, and resend after a simulated transport failure.
+  Physical LED inspection and installed FiestaBoard checks remain pending.
+- The diagnostic tool stops without writing when connection or device
+  compatibility checks fail; regression coverage includes TC002, a wider
+  matrix, and a server error.

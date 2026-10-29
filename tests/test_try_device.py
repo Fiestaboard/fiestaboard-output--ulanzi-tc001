@@ -6,6 +6,8 @@ import importlib.util
 import io
 import json
 
+import pytest
+
 from .conftest import PLUGIN_DIR
 from .mock_awtrix import ACTIVE, PUSHED
 
@@ -44,4 +46,19 @@ def test_it_fails_when_the_clock_does(clock):
     clock.mode = "http_500"
     tool = load_tool()
     assert tool.main(["--host", clock.host, "--pause", "0", "--user", "admin", "--password", "x"]) == 1
+
+
+@pytest.mark.parametrize("fault", ["tc002", "wide", "http_500"])
+def test_failed_preflight_never_writes_to_the_device(clock, fault):
+    if fault == "tc002":
+        clock.board_type = "tc002"
+    elif fault == "wide":
+        clock.panel_width = 64
+    else:
+        clock.mode = fault
+    tool = load_tool()
+    report = tool.run({"host": clock.host}, pause_s=0, out=io.StringIO())
+    assert not report["steps"][0]["result"]["success"]
+    assert all(method == "GET" for method, _ in clock.calls())
+    assert len(report["steps"]) == 1
 
