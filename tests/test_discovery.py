@@ -6,7 +6,7 @@ import ipaddress
 
 import plugins.ulanzi_tc001 as module
 import pytest
-from plugins.ulanzi_tc001 import AwtrixNG, candidate_subnets, is_awtrix_reply, sweep
+from plugins.ulanzi_tc001 import AwtrixNGTC001, candidate_subnets, is_awtrix_reply, sweep
 
 from src.plugins import OutputHttp
 
@@ -106,7 +106,7 @@ def test_core_discover_hook_sweeps_the_hint(clock, monkeypatch):
 
     monkeypatch.setattr(module, "local_ipv4", lambda: "10.1.2.3")
     monkeypatch.setattr(module, "_targets", fake_targets)
-    found = AwtrixNG.discover(2.0, hint="192.168.5.5")
+    found = AwtrixNGTC001.discover(2.0, hint="192.168.5.5")
     assert seen["networks"] == nets("192.168.5.0/24", "10.1.2.0/24")
     assert [d["ip"] for d in found] == [ip]
 

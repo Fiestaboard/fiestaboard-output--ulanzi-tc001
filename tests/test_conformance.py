@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from functools import cache
 
-from plugins.ulanzi_tc001 import AwtrixNG
+from plugins.ulanzi_tc001 import AwtrixNGTC001
 
 from src.outputs.conformance import OutputConformanceSuite
 
@@ -40,7 +40,7 @@ def decode(payload):
 
 def make_plugin(board_id, config, transport):
     # The suite routes self.http to its fake device itself.
-    return AwtrixNG(board_id, config)
+    return AwtrixNGTC001(board_id, config)
 
 
 def test_the_plugin_is_conformant():

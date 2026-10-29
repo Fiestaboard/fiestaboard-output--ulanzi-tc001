@@ -4,7 +4,7 @@ Every test talks to :class:`~tests.mock_awtrix.MockAwtrix` on 127.0.0.1; the
 network fence (pytest-socket, ``--allow-hosts=127.0.0.1``) refuses anything
 else, so no test can reach a real clock.
 
-``make_plugin`` builds an :class:`AwtrixNG` the way core does (the manifest's
+``make_plugin`` builds an :class:`AwtrixNGTC001` the way core does (the manifest's
 ``output`` block bound, ``open()`` called) and shortens the pacing constants
 so tests run fast. Tests that are *about* pacing set them back explicitly.
 """
@@ -14,7 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from plugins.ulanzi_tc001 import AwtrixNG
+from plugins.ulanzi_tc001 import AwtrixNGTC001
 
 from src.plugins.manifest import load_manifest
 
@@ -43,8 +43,8 @@ def clock():
     device.stop()
 
 
-def build(config: dict, *, fast: bool = True) -> AwtrixNG:
-    plugin = AwtrixNG("board-test", config)
+def build(config: dict, *, fast: bool = True) -> AwtrixNGTC001:
+    plugin = AwtrixNGTC001("board-test", config)
     if MANIFEST is not None and MANIFEST.output is not None:
         plugin.bind_manifest(MANIFEST.output)
     if fast:
@@ -57,9 +57,9 @@ def build(config: dict, *, fast: bool = True) -> AwtrixNG:
 
 @pytest.fixture
 def make_plugin(clock):
-    built: list[AwtrixNG] = []
+    built: list[AwtrixNGTC001] = []
 
-    def factory(fast: bool = True, **config) -> AwtrixNG:
+    def factory(fast: bool = True, **config) -> AwtrixNGTC001:
         config.setdefault("host", clock.host)
         plugin = build(config, fast=fast)
         built.append(plugin)

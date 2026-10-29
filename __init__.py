@@ -1,5 +1,9 @@
 """AWTRIX NG output plugin for FiestaBoard: a Ulanzi TC001 as a board.
 
+Note: the rendering, payload and device-recognition sections below are still
+TC002-shaped (52 x 17 model, layout push) and are rewritten by Tasks 5-7; only
+the names and `PANEL_WIDTH`/`PANEL_HEIGHT` (32 x 8) are the TC001's so far.
+
 Drives one TC002 running AWTRIX NG over its local HTTP API. The board is a
 **pushed app** in the clock's rotation (``PUT /api/v1/apps/pushed/{name}``),
 so the clock's own apps and scripts keep running beside it. Core owns the
@@ -17,7 +21,7 @@ What the AWTRIX NG documentation (1.2.2) settles:
 - **Three rows need 17 pixels.** In core's 3x5 face (1-pixel gaps) a
   16-pixel panel fits two text rows, and core refuses an LED board below
   3 x 10. The device model is 52 x 17 (3 rows x 13 columns) and
-  :meth:`AwtrixNG.render` drops :data:`GAP_ROW`, the gap between the second
+  :meth:`AwtrixNGTC001.render` drops :data:`GAP_ROW`, the gap between the second
   and the third text row, so the clock gets exactly 52 x 16. A page that
   leaves the third row dark is two rows, and those are centred instead.
 - **A replacement shows at once** while the app is on screen, so every LED
@@ -29,7 +33,7 @@ What the AWTRIX NG documentation (1.2.2) settles:
   ``GET /api/v1/device`` whether the board is the current app and otherwise
   sends only the new page.
 - **Pushed apps live in RAM** and vanish when the clock restarts.
-  :meth:`AwtrixNG.poll_device` watches ``uptimeSeconds`` and reports a restart,
+  :meth:`AwtrixNGTC001.poll_device` watches ``uptimeSeconds`` and reports a restart,
   so core sends the page again.
 
 All device traffic goes through ``self.http`` (core's helper: the
@@ -88,7 +92,7 @@ except ImportError:  # a core before the poll_device hook never polls: nothing t
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["AwtrixError", "AwtrixNG", "candidate_subnets", "is_awtrix_reply", "sweep"]
+__all__ = ["AwtrixError", "AwtrixNGTC001", "candidate_subnets", "is_awtrix_reply", "sweep"]
 
 # --- device facts ---------------------------------------------------------------------------
 
@@ -96,7 +100,7 @@ __all__ = ["AwtrixError", "AwtrixNG", "candidate_subnets", "is_awtrix_reply", "s
 PANEL_WIDTH = 32
 PANEL_HEIGHT = 8
 
-#: The pixel row :meth:`AwtrixNG.render` drops from the model's 52 x 17: in the
+#: The pixel row :meth:`AwtrixNGTC001.render` drops from the model's 52 x 17: in the
 #: 3x5 face the text rows sit at y 0-4, 6-10 and 12-16, so 11 is the gap
 #: between the second and the third. The first row (often a title) keeps its
 #: gap below it.
@@ -124,7 +128,7 @@ CONNECT_TIMEOUT_S = 3.0
 READ_TIMEOUT_S = 5.0
 
 #: How far ``uptimeSeconds`` may lag the time since it was last read before
-#: :meth:`AwtrixNG.poll_device` takes it for a restart (the clock reports
+#: :meth:`AwtrixNGTC001.poll_device` takes it for a restart (the clock reports
 #: whole seconds; a request may sit in a queue).
 UPTIME_SLACK_S = 30.0
 
@@ -377,7 +381,7 @@ def squeeze(pixels: bytes, width: int, height: int) -> bytes:
     return bytes(out)
 
 
-class AwtrixNG(OutputPluginBase):
+class AwtrixNGTC001(OutputPluginBase):
     """One Ulanzi TC002 running AWTRIX NG on the local network."""
 
     plugin_id = "ulanzi_tc001"

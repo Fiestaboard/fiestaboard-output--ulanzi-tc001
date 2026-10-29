@@ -48,7 +48,7 @@ def load_plugin_class() -> type:
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module.AwtrixNG
+    return module.AwtrixNGTC001
 
 
 class Recorder:
