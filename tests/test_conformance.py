@@ -2,8 +2,10 @@
 
 The suite plays core and clock both: it routes the plugin's device helper
 (``self.http``) to its fake transport, so the plugin's real request code runs.
-``decode`` turns a pushed app back into the grid it shows, by matching its
-bitmap against every uniform grid the suite writes.
+Core decodes pushed frames only for plugins that play a ``sequence``; this
+plugin streams, so that rule is skipped and ``decode`` is not exercised by
+the suite. ``decode`` is kept (it matches a pushed bitmap against the uniform
+grids) for a core that does; the frame pixels are checked in test_writes.py.
 
 The pacing constants stay at their shipped values here: conformance is about
 the plugin as it ships.

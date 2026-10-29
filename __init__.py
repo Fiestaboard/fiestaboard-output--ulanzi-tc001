@@ -695,8 +695,7 @@ class AwtrixNGTC001(OutputPluginBase):
         except ValueError as exc:
             return ActionOutcome(status="error", message=f"Cannot search that network: {exc}.")
         manual = [
-            "Type the clock's address instead: hold the middle button on the clock and open the "
-            "device info, or look for it in your router's list of connected devices.",
+            "Type the clock's address instead: look for it in your router's list of connected devices or the clock's web UI.",
             "Its local name works too, for example awtrixng-a1b2c3.local.",
             "Or enter your network, for example 192.168.1.0/24, and search again.",
         ]
@@ -765,38 +764,8 @@ class AwtrixNGTC001(OutputPluginBase):
         where = self.host or "the clock"
         try:
             body = self._device_state()
-        except OutputHostBlocked:
-            return ConnectionCheck.blocked(self.host)
-        except _NoHost:
-            return self._failed("unreachable", "No clock address is set.", "No address", "Enter the clock's IP address.")
-        except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as exc:
-            return self._failed(
-                "unreachable",
-                f"Could not connect to {where}.",
-                str(exc),
-                "Check the address: the clock shows it in its device info, and your router lists it.",
-                "Make sure the clock is powered on and on the same network as FiestaBoard.",
-            )
-        except requests.exceptions.Timeout as exc:
-            return self._failed(
-                "timeout", f"{where} accepted the connection but did not answer.", str(exc), "Restart the clock and try again."
-            )
-        except AwtrixStatusError as exc:
-            if exc.status == 401:
-                return self._failed(
-                    "auth",
-                    f"{where} asks for a password.",
-                    str(exc),
-                    "Enter the user name and password of the clock's web UI.",
-                )
-            failure = "server_error" if exc.status >= 500 else "unexpected_status"
-            return self._failed(failure, f"{where} answered with {exc}.", str(exc), "Check that this address is an AWTRIX NG clock.")
-        except AwtrixBadResponse as exc:
-            return self._failed(
-                "bad_response", f"{where} answered, but not like AWTRIX NG.", str(exc), "Check that this address is an AWTRIX NG clock."
-            )
         except Exception as exc:
-            return self._failed("unreachable", f"Could not reach {where}.", str(exc), "Check the address.")
+            return self._classify(exc)
         board_type = body.get("boardType")
         if board_type == TC002:
             return self._failed(
@@ -811,22 +780,50 @@ class AwtrixNGTC001(OutputPluginBase):
             )
         try:
             width, height = self._panel_size()
-        except OutputHostBlocked:
-            return ConnectionCheck.blocked(self.host)
-        except Exception as exc:  # no usable answer: not an AWTRIX NG clock as far as we can tell
-            return self._failed(
-                "bad_response", f"{where} answered, but not like AWTRIX NG.", str(exc), "Check that this address is an AWTRIX NG clock."
-            )
+        except Exception as exc:
+            return self._classify(exc)
         if (width, height) != (PANEL_WIDTH, PANEL_HEIGHT):
             return self._failed(
                 "bad_response",
                 f"{where} is an AWTRIX NG clock {width} pixels wide; this display draws on the TC001's {PANEL_WIDTH} x {PANEL_HEIGHT}.",
                 f"display {width} x {height}",
-                "Use a display model that matches this clock's panel, or set the clock to a single 32-pixel-wide panel.",
+                "Check the panel settings of the clock; this display is for a single 32 x 8 panel.",
             )
         details = {key: body[key] for key in ("version", "hostname", "currentApp") if key in body}
         version = f" (AWTRIX NG {body['version']})" if body.get("version") else ""
         return ConnectionCheck(success=True, message=f"Connected to the TC001 at {where}{version}.", details=details)
+
+    def _classify(self, exc: Exception) -> ConnectionCheck:
+        """The failed check for what went wrong on either read (device, capabilities)."""
+        where = self.host or "the clock"
+        if isinstance(exc, OutputHostBlocked):
+            return ConnectionCheck.blocked(self.host)
+        if isinstance(exc, _NoHost):
+            return self._failed("unreachable", "No clock address is set.", "No address", "Enter the clock's IP address.")
+        if isinstance(exc, (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError)):
+            return self._failed(
+                "unreachable",
+                f"Could not connect to {where}.",
+                str(exc),
+                "Check the address: find it in your router's list of devices or the clock's web UI.",
+                "Make sure the clock is powered on and on the same network as FiestaBoard.",
+            )
+        if isinstance(exc, requests.exceptions.Timeout):
+            return self._failed(
+                "timeout", f"{where} accepted the connection but did not answer.", str(exc), "Restart the clock and try again."
+            )
+        if isinstance(exc, AwtrixStatusError):
+            if exc.status == 401:
+                return self._failed(
+                    "auth", f"{where} asks for a password.", str(exc), "Enter the user name and password of the clock's web UI."
+                )
+            failure = "server_error" if exc.status >= 500 else "unexpected_status"
+            return self._failed(failure, f"{where} answered with {exc}.", str(exc), "Check that this address is an AWTRIX NG clock.")
+        if isinstance(exc, AwtrixBadResponse):
+            return self._failed(
+                "bad_response", f"{where} answered, but not like AWTRIX NG.", str(exc), "Check that this address is an AWTRIX NG clock."
+            )
+        return self._failed("unreachable", f"Could not reach {where}.", str(exc), "Check the address.")
 
     @staticmethod
     def _failed(failure: Any, message: str, error: str, *steps: str) -> ConnectionCheck:

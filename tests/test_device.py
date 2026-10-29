@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.plugins import CancelToken
+from src.plugins import CancelToken, OutputHostBlocked
 
 from .conftest import grid
 
@@ -46,15 +46,36 @@ def test_an_unknown_board_type_is_not_like_awtrix_ng(clock, make_plugin):
     assert not result.success and result.message.endswith("answered, but not like AWTRIX NG.")
 
 
-@pytest.mark.parametrize("fault", ["http_500", "no_display", "not_json"])
-def test_capabilities_that_fail_are_handled_like_a_bad_device_answer(clock, make_plugin, fault):
-    if fault == "http_500":
-        clock.fail_paths = ("/api/v1/capabilities",)
-    else:
-        clock.capabilities_fault = fault
+@pytest.mark.parametrize("fault", ["no_display", "not_json"])
+def test_capabilities_without_a_display_are_not_like_awtrix_ng(clock, make_plugin, fault):
+    clock.capabilities_fault = fault
     result = make_plugin().check_connection()
     assert not result.success and result.failure == "bad_response"
     assert result.message == f"{clock.host} answered, but not like AWTRIX NG."
+
+
+def test_a_capabilities_500_is_a_server_error(clock, make_plugin):
+    clock.fail_paths = ("/api/v1/capabilities",)
+    assert make_plugin().check_connection().failure == "server_error"
+
+
+def test_a_capabilities_401_is_auth(clock, make_plugin):
+    clock.capabilities_fault = "unauthorized"
+    result = make_plugin().check_connection()
+    assert result.failure == "auth" and result.message == f"{clock.host} asks for a password."
+
+
+def test_a_capabilities_timeout_is_a_timeout(clock, make_plugin):
+    clock.capabilities_fault = "hang"
+    result = make_plugin().check_connection()
+    assert result.failure == "timeout"
+    assert result.message == f"{clock.host} accepted the connection but did not answer."
+
+
+def test_a_fenced_capabilities_read_is_blocked(clock, make_plugin, monkeypatch):
+    plugin = make_plugin()
+    monkeypatch.setattr(plugin, "_panel_size", lambda: (_ for _ in ()).throw(OutputHostBlocked(clock.host)))
+    assert plugin.check_connection().failure == "blocked"
 
 
 @pytest.mark.parametrize(

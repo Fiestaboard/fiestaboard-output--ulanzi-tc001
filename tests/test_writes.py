@@ -36,6 +36,30 @@ def test_a_still_is_one_push_of_one_app(clock, make_plugin):
     assert "durationMs" not in body
 
 
+def test_a_pushed_frame_decodes_back_to_the_page_it_shows(clock, make_plugin):
+    plugin = make_plugin(show_on_change=False)
+    page = cells_from_codes([[1, 0, 2, 0, 3, 0, 4, 0]])
+    assert plugin.write_cells(page, native=None, cancel=CancelToken()).success
+
+    pixels = MockAwtrix.bitmap(clock.pushes()[-1])
+
+    assert pixels == plugin.render(page)
+    assert len(pixels) == PANEL_WIDTH * PANEL_HEIGHT * 3
+    # A known lit pixel: the first tile is code 1, so the pixel at its centre
+    # has the colour the
+    # all-code-1 page paints there.
+    def at(buffer: bytes, x: int, y: int) -> bytes:
+        i = (y * PANEL_WIDTH + x) * 3
+        return buffer[i : i + 3]
+
+    solid = render(cells(1))
+    lit = [(x, y) for y in range(PANEL_HEIGHT) for x in range(4) if at(solid, x, y) != b"\0\0\0"]
+    assert lit
+    x, y = lit[0]
+    assert at(pixels, x, y) == at(solid, x, y) != b"\0\0\0"
+    assert pixels != render(cells(0))
+
+
 def test_a_frame_is_one_bitmap_draw_without_a_layout(clock, make_plugin):
     make_plugin(show_on_change=False, duration_s=12).write(grid(1), native=None, cancel=CancelToken())
 

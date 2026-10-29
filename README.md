@@ -17,20 +17,19 @@ the **Text size** setting.
 ## Requirements
 
 - FiestaBoard 10.2.0 or later
-- A Ulanzi TC001 running AWTRIX NG, on the same network as FiestaBoard. The
-  TC001 ships with Ulanzi's own firmware: flash AWTRIX NG onto it with its
-  web installer (see the [AWTRIX NG](https://github.com/Blueforcer/awtrix-ng)
-  project) before using this plugin.
+- A Ulanzi TC001 running AWTRIX NG, on the same network as FiestaBoard. See
+  [AWTRIX NG](https://github.com/Blueforcer/awtrix-ng) for how to install it
+  on the clock.
 - Nothing to install on the clock, and no cloud service or account
 
 **AWTRIX NG only.** AWTRIX 3 and Ulanzi's own firmware are not supported.
 
 ## Quick start
 
-1. Flash AWTRIX NG onto the clock and join it to your Wi-Fi.
+1. Install AWTRIX NG on the clock (see its documentation) and join the clock to your Wi-Fi.
 2. In FiestaBoard, add an output board and choose **Ulanzi TC001 (AWTRIX NG)**.
-3. Press **Find my clock**, or type its IP address (the clock shows it in its
-   device info; your router lists it too).
+3. Press **Find my clock**, or type its IP address (find the address in your
+   router or the clock's web UI).
 4. Press **Test connection**. A TC001 answers
    `Connected to the TC001 at <address> (AWTRIX NG <version>).`
 5. Pick a **Text size** and save. The board joins the clock's rotation.
@@ -130,5 +129,9 @@ conformance suite.
 
 ## Licence and credits
 
-MIT. Adapted from Oliver Rummeyer's [Ulanzi TC002 plugin](https://github.com/rummeyer/fiestaboard-output--ulanzi-tc002) (MIT). AWTRIX NG is by
-[Blueforcer](https://github.com/Blueforcer/awtrix-ng).
+MIT.
+
+Adapted from Oliver Rummeyer's
+[Ulanzi TC002 plugin](https://github.com/rummeyer/fiestaboard-output--ulanzi-tc002) (MIT).
+
+AWTRIX NG is by [Blueforcer](https://github.com/Blueforcer/awtrix-ng).
