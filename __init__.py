@@ -13,17 +13,13 @@ plugin moves pixels.
 
 What the AWTRIX NG documentation (1.2.2) settles:
 
-- **The panel is 52 x 16.** A pushed app without a layout is drawn at double
-  size on a 26 x 8 grid while ``enlargeApps`` is on (the default); a
-  **layout** (TC002 only) keeps all 52 x 16 pixels whatever that setting
-  says. Each frame is therefore one layout with one region the size of the
-  panel, drawing one ``bitmap`` of base64 RGB888.
-- **Three rows need 17 pixels.** In core's 3x5 face (1-pixel gaps) a
-  16-pixel panel fits two text rows, and core refuses an LED board below
-  3 x 10. The device model is 52 x 17 (3 rows x 13 columns) and
-  :meth:`AwtrixNGTC001.render` drops :data:`GAP_ROW`, the gap between the second
-  and the third text row, so the clock gets exactly 52 x 16. A page that
-  leaves the third row dark is two rows, and those are centred instead.
+- **The panel is 32 x 8.** The device model is exactly that, so core's layout
+  is the panel: :meth:`AwtrixNGTC001.render` is ``rasterize(layout(frame))``
+  with nothing dropped, cut or centred. The board draws in the 3x5 face
+  (8 characters, glyph rows y 1-5) or the 5x7 face (5 characters, y 0-6);
+  core binds the plugin to the model with the board's chosen face
+  (``output_config.font``) swapped in, and ``layout`` follows it. Each frame is
+  one 32 x 8 RGB888 bitmap.
 - **A replacement shows at once** while the app is on screen, so every LED
   transition core plans is streamed as paced single frames at up to
   :data:`STREAM_MAX_FPS` (a conservative rate, not yet measured on a clock).
@@ -99,12 +95,6 @@ __all__ = ["AwtrixError", "AwtrixNGTC001", "candidate_subnets", "is_awtrix_reply
 #: The TC001's matrix (32 x 8).
 PANEL_WIDTH = 32
 PANEL_HEIGHT = 8
-
-#: The pixel row :meth:`AwtrixNGTC001.render` drops from the model's 52 x 17: in the
-#: 3x5 face the text rows sit at y 0-4, 6-10 and 12-16, so 11 is the gap
-#: between the second and the third. The first row (often a title) keeps its
-#: gap below it.
-GAP_ROW = 11
 
 #: The fastest a transition is streamed. Not measured on a clock: one push is
 #: one HTTP request of about 3.4 KB, and five a second is what the Pixoo plugin
@@ -360,27 +350,6 @@ def _takes_layers(layout: Any) -> bool:
     return "layers" in inspect.signature(layout).parameters
 
 
-def squeeze(pixels: bytes, width: int, height: int) -> bytes:
-    """A *width* x *height* RGB888 frame as the panel's 52 x 16: :data:`GAP_ROW`
-    dropped from the model's 52 x 17, anything else cut or padded black.
-
-    A frame whose third text row is dark, gap and all, is two rows of text:
-    they keep the gap between them and move to the middle of the panel,
-    rather than leaving its bottom third empty.
-    """
-    stride = width * 3
-    rows = [pixels[y * stride : (y + 1) * stride] for y in range(height)]
-    if height > PANEL_HEIGHT and not any(any(row) for row in rows[GAP_ROW:]):
-        rows = [b""] * ((PANEL_HEIGHT - GAP_ROW) // 2) + rows[:GAP_ROW]
-    elif height > PANEL_HEIGHT:
-        del rows[GAP_ROW]
-    out = bytearray()
-    for y in range(PANEL_HEIGHT):
-        row = rows[y] if y < len(rows) else b""
-        out += row[: PANEL_WIDTH * 3].ljust(PANEL_WIDTH * 3, b"\0")
-    return bytes(out)
-
-
 class AwtrixNGTC001(OutputPluginBase):
     """One Ulanzi TC002 running AWTRIX NG on the local network."""
 
@@ -428,8 +397,8 @@ class AwtrixNGTC001(OutputPluginBase):
         return self._renderer
 
     def layout(self, frame: Sequence[Sequence[Any]]) -> Any:
-        """*frame* (0-71 codes or rich cells) laid out on the model's 52 x 17,
-        with the pixel canvases it carries (``frame.layers``) drawn over it."""
+        """*frame* (0-71 codes or rich cells) laid out on the model's 32 x 8 (in the
+        face core bound), with the pixel canvases it carries (``frame.layers``) drawn over it."""
         spec, options = self._render_setup()
         tokens = [[_token(cell) for cell in row] for row in frame]
         layers = tuple(getattr(frame, "layers", None) or ())
@@ -438,12 +407,12 @@ class AwtrixNGTC001(OutputPluginBase):
         return layout_message(tokens, spec, options)
 
     def render(self, frame: Sequence[Sequence[Any]]) -> bytes:
-        """*frame* as the panel's 52 x 16 RGB888, row-major from the top left."""
+        """*frame* as the panel's 32 x 8 RGB888, row-major from the top left."""
         return self._panel(rasterize(self.layout(frame)))
 
     @staticmethod
     def _panel(led_frame: Any) -> bytes:
-        return squeeze(led_frame.pixels, led_frame.width, led_frame.height)
+        return led_frame.pixels
 
     # --- the device seam ----------------------------------------------------------------------
 
