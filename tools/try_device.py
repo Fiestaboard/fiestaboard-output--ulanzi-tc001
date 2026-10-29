@@ -8,9 +8,12 @@ never runs it. It does exactly two things, then stops:
 2. waits (5 s by default), then changes to ``FIESTA`` / ``BOARD`` / ``TC001``
    through ``write_transition`` with the transition FiestaBoard resolves for
    the TC001 model (flip, streamed as paced pushes), or the one
-   ``--transition`` names.
+   ``--transition`` names. Every frame is one 32 x 8 bitmap (768 bytes of
+   RGB888, about 1.1 kB of JSON).
 
-It prints each HTTP request — method, path, how long it took, the HTTP status
+It first checks the connection (``GET /api/v1/device`` and
+``/api/v1/capabilities``: an AWTRIX NG clock whose panel is 32 x 8), then
+prints each HTTP request — method, path, how long it took, the HTTP status
 and the clock's answer (never the pixel data) — so the stream rate can be
 judged against what the panel shows. The app stays on the clock until it
 restarts or you delete it (``curl -X DELETE http://<clock>/api/v1/apps/FiestaBoard``).
@@ -65,7 +68,7 @@ class Recorder:
             "at_s": round(time.monotonic() - self.started, 3),
             "method": request.method,
             "path": urlsplit(request.url).path,
-            **({"bytes": len(json.dumps(body))} if "layout" in body else {k: body[k] for k in body}),
+            **({"bytes": len(json.dumps(body))} if "draw" in body else {k: body[k] for k in body}),
         }
         sent = time.monotonic()
         try:
@@ -132,7 +135,7 @@ def run(config: dict[str, Any], *, pause_s: float = 5.0, transition: str | None 
 
 
 def _print(report: dict[str, Any], out) -> None:
-    print(f"AWTRIX NG at {report['host']}, app {report['app']}", file=out)
+    print(f"AWTRIX NG at {report['host']}, app {report['app']}, frames 32 x 8", file=out)
     for call in report["calls"]:
         what = f"{call['method']} {call['path']}"
         extra = f"{call['bytes']} B" if "bytes" in call else json.dumps({k: v for k, v in call.items() if k not in _KEYS})

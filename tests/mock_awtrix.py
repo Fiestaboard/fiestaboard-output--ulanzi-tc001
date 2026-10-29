@@ -52,6 +52,9 @@ class MockAwtrix:
         self.board_type = "awtrixng"
         self.panel_width = 32
         self.panels = 1
+        #: ``None`` (normal), ``"no_display"`` (a capabilities answer without
+        #: ``display``) or ``"not_json"`` (200, not JSON).
+        self.capabilities_fault: str | None = None
         self.password: str | None = None
         self.on_request: Callable[[str, str, Any, int], None] | None = None
         #: Pushed apps by name (as stored, case kept) -> last body.
@@ -176,6 +179,10 @@ class MockAwtrix:
         if size > MAX_BODY:
             return 413, {"error": {"code": "payloadTooLarge", "message": "JSON body over 8192 bytes"}}
         if method == "GET" and path == CAPABILITIES:
+            if self.capabilities_fault == "no_display":
+                return 200, {"features": {}}
+            if self.capabilities_fault == "not_json":
+                return 200, b"<html>no</html>"
             return 200, {"display": {"width": self.panel_width * self.panels, "height": 8}}
         if method == "GET" and path == SETTINGS:
             return 200, {"panelWidth": self.panel_width, "panels": self.panels}

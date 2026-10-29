@@ -1,9 +1,5 @@
 """AWTRIX NG output plugin for FiestaBoard: a Ulanzi TC001 as a board.
 
-Note: the device-recognition and discovery sections below are still
-TC002-shaped and are rewritten by Task 7; rendering and the push payload are
-the TC001's (32 x 8, one bitmap draw).
-
 Drives one TC001 running AWTRIX NG over its local HTTP API. The board is a
 **pushed app** in the clock's rotation (``PUT /api/v1/apps/pushed/{name}``),
 so the clock's own apps and scripts keep running beside it. Core owns the
@@ -37,6 +33,12 @@ What the AWTRIX NG documentation (1.2.2) settles:
   (``PUT /api/v1/apps/active``, ``fast``), and with it off the plugin asks
   ``GET /api/v1/device`` whether the board is the current app and otherwise
   sends only the new page.
+- **A TC001 is told apart by two reads.** ``GET /api/v1/device`` says
+  ``boardType``: ``"awtrixng"`` on every ESP32 build (the TC001's), ``"tc002"``
+  on the TC002, whose plugin is a different one. ``DeviceState`` has no panel
+  width, and an ESP32 build can run 32 to 128 pixels wide, so the width comes
+  from ``GET /api/v1/capabilities`` (``display.width`` / ``display.height``).
+  Only ``awtrixng`` at 32 x 8 is a TC001: Find my clock lists no other.
 - **Pushed apps live in RAM** and vanish when the clock restarts.
   :meth:`AwtrixNGTC001.poll_device` watches ``uptimeSeconds`` and reports a restart,
   so core sends the page again.
@@ -106,7 +108,7 @@ PANEL_WIDTH = 32
 PANEL_HEIGHT = 8
 
 #: The fastest a transition is streamed. Not measured on a clock: one push is
-#: one HTTP request of about 3.4 KB, and five a second is what the Pixoo plugin
+#: one HTTP request of about 1.1 kB, and five a second is what the Pixoo plugin
 #: measured as safe for the same kind of stream.
 STREAM_MAX_FPS = 5
 
@@ -139,9 +141,13 @@ DEVICE_PATH = "/api/v1/device"
 PUSHED_PATH = "/api/v1/apps/pushed/"
 ACTIVE_PATH = "/api/v1/apps/active"
 
-#: ``boardType`` of a TC002, and of an ESP32 AWTRIX NG (32 x 8: no layouts).
+CAPABILITIES_PATH = "/api/v1/capabilities"
+
+#: ``boardType`` of every ESP32 AWTRIX NG build (the TC001's, whatever its
+#: panel width), and of a TC002 (which has its own plugin).
+ESP32 = "awtrixng"
 TC002 = "tc002"
-_BOARD_TYPES = frozenset({TC002, "awtrixng"})
+_BOARD_TYPES = frozenset({TC002, ESP32})
 
 
 class AwtrixError(OSError):
@@ -202,7 +208,8 @@ _DOCKER_BRIDGES = ipaddress.IPv4Network("172.16.0.0/12")
 
 
 def is_awtrix_reply(body: Any) -> bool:
-    """Whether *body* is an AWTRIX NG clock's ``GET /api/v1/device`` answer."""
+    """Whether *body* is an AWTRIX NG clock's ``GET /api/v1/device`` answer
+    (a TC002's or an ESP32's; :func:`sweep` keeps only a TC001)."""
     return isinstance(body, dict) and body.get("boardType") in _BOARD_TYPES and "uid" in body
 
 
@@ -267,23 +274,41 @@ def candidate_subnets(
 
 def _device(ip: str, port: int, body: dict[str, Any]) -> dict[str, Any]:
     name = str(body.get("hostname") or "AWTRIX NG")
-    kind = "TC002" if body.get("boardType") == TC002 else "AWTRIX NG, not a TC002"
     return {
         "ip": ip,
         "port": port,
         "host": ip if port == 80 else f"{ip}:{port}",
-        "label": f"{name} at {ip} ({kind})",
+        "label": f"{name} at {ip} (TC001)",
         "hostname": name,
     }
 
 
+def display_size(body: Any) -> tuple[int, int] | None:
+    """``(width, height)`` from a ``GET /api/v1/capabilities`` answer, or ``None``."""
+    display = body.get("display") if isinstance(body, dict) else None
+    if not isinstance(display, dict):
+        return None
+    width, height = display.get("width"), display.get("height")
+    if any(not isinstance(v, int) or isinstance(v, bool) for v in (width, height)):
+        return None
+    return width, height
+
+
 def _probe(http: OutputHttp, ip: str, port: int, per_host_s: float) -> dict[str, Any] | None:
+    """The device state of the TC001 at ``ip:port``, or ``None``: an ESP32
+    AWTRIX NG (``boardType`` ``awtrixng``) whose capabilities say 32 x 8. The
+    second request goes only to a host that already answered as one."""
+    base = f"http://{ip}:{port}"
     try:
-        response = http.get(f"http://{ip}:{port}{DEVICE_PATH}", timeout=(per_host_s, per_host_s))
+        response = http.get(base + DEVICE_PATH, timeout=(per_host_s, per_host_s))
         body = response.json() if response.status_code == 200 else None
+        if not is_awtrix_reply(body) or body.get("boardType") != ESP32:
+            return None
+        response = http.get(base + CAPABILITIES_PATH, timeout=(per_host_s, per_host_s))
+        size = display_size(response.json()) if response.status_code == 200 else None
     except Exception:  # unreachable, fenced, not JSON: not a clock
         return None
-    return body if is_awtrix_reply(body) else None
+    return body if size == (PANEL_WIDTH, PANEL_HEIGHT) else None
 
 
 def sweep(
@@ -294,8 +319,10 @@ def sweep(
     total_s: float = DISCOVERY_TOTAL_S,
     concurrency: int = DISCOVERY_CONCURRENCY,
 ) -> list[dict[str, Any]]:
-    """Ask every ``(ip, port)`` in *targets* for ``GET /api/v1/device``, at most
-    *concurrency* at once; the clocks that answered by *total_s*, in target order.
+    """Ask every ``(ip, port)`` in *targets* for ``GET /api/v1/device`` (and the
+    ones that answer as an ESP32 AWTRIX NG for ``GET /api/v1/capabilities``), at
+    most *concurrency* at once; the TC001s (32 x 8) that answered by *total_s*,
+    in target order. A TC002 or a wider ESP32 build is not listed.
 
     Goes through *http*, so ``FIESTABOARD_OUTPUTS_ALLOW_HOSTS`` applies. A clock
     with a password set answers 401 and is not found: type its address.
@@ -357,7 +384,7 @@ def _takes_layers(layout: Any) -> bool:
 
 
 class AwtrixNGTC001(OutputPluginBase):
-    """One Ulanzi TC002 running AWTRIX NG on the local network."""
+    """One Ulanzi TC001 (32 x 8) running AWTRIX NG on the local network."""
 
     plugin_id = "ulanzi_tc001"
 
@@ -458,6 +485,17 @@ class AwtrixNGTC001(OutputPluginBase):
         if isinstance(uptime, (int, float)) and not isinstance(uptime, bool):
             self._uptime = (float(uptime), time.monotonic())
         return body
+
+    def _panel_size(self) -> tuple[int, int]:
+        """``GET /api/v1/capabilities``: the panel's ``(width, height)`` in pixels.
+
+        Raises:
+            AwtrixBadResponse: the answer has no ``display.width`` / ``display.height``.
+        """
+        size = display_size(self._request("GET", CAPABILITIES_PATH, setup=True))
+        if size is None:
+            raise AwtrixBadResponse("the capabilities have no display.width and display.height")
+        return size
 
     def _payload(self, pixels: bytes) -> dict[str, Any]:
         """One frame as a pushed app: a single full-screen ``bitmap`` draw.
@@ -759,20 +797,36 @@ class AwtrixNGTC001(OutputPluginBase):
             )
         except Exception as exc:
             return self._failed("unreachable", f"Could not reach {where}.", str(exc), "Check the address.")
-        if body.get("boardType") != TC002:
-            if body.get("boardType") in _BOARD_TYPES:
-                return self._failed(
-                    "bad_response",
-                    f"{where} is an AWTRIX NG clock, but not a TC002.",
-                    f"boardType {body.get('boardType')!r}",
-                    "This plugin draws on the TC002's 52 x 16 display.",
-                )
+        board_type = body.get("boardType")
+        if board_type == TC002:
+            return self._failed(
+                "bad_response",
+                f"{where} is a Ulanzi TC002, not a TC001.",
+                f"boardType {board_type!r}",
+                "Use the Ulanzi TC002 (AWTRIX NG) display instead.",
+            )
+        if board_type != ESP32:
             return self._failed(
                 "bad_response", f"{where} answered, but not like AWTRIX NG.", "no boardType", "Check that this address is an AWTRIX NG clock."
             )
+        try:
+            width, height = self._panel_size()
+        except OutputHostBlocked:
+            return ConnectionCheck.blocked(self.host)
+        except Exception as exc:  # no usable answer: not an AWTRIX NG clock as far as we can tell
+            return self._failed(
+                "bad_response", f"{where} answered, but not like AWTRIX NG.", str(exc), "Check that this address is an AWTRIX NG clock."
+            )
+        if (width, height) != (PANEL_WIDTH, PANEL_HEIGHT):
+            return self._failed(
+                "bad_response",
+                f"{where} is an AWTRIX NG clock {width} pixels wide; this display draws on the TC001's {PANEL_WIDTH} x {PANEL_HEIGHT}.",
+                f"display {width} x {height}",
+                "Use a display model that matches this clock's panel, or set the clock to a single 32-pixel-wide panel.",
+            )
         details = {key: body[key] for key in ("version", "hostname", "currentApp") if key in body}
         version = f" (AWTRIX NG {body['version']})" if body.get("version") else ""
-        return ConnectionCheck(success=True, message=f"Connected to the TC002 at {where}{version}.", details=details)
+        return ConnectionCheck(success=True, message=f"Connected to the TC001 at {where}{version}.", details=details)
 
     @staticmethod
     def _failed(failure: Any, message: str, error: str, *steps: str) -> ConnectionCheck:

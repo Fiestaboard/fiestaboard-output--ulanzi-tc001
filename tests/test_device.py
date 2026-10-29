@@ -9,18 +9,52 @@ from src.plugins import CancelToken
 from .conftest import grid
 
 
-def test_a_tc002_connects(clock, make_plugin):
+def test_a_tc001_connects(clock, make_plugin):
     result = make_plugin().check_connection()
     assert result.success
-    assert "TC002" in result.message and "1.2.2" in result.message
+    assert result.message == f"Connected to the TC001 at {clock.host} (AWTRIX NG 1.2.2)."
     assert result.details == {"version": "1.2.2", "hostname": "awtrixng-ab34cd", "currentApp": "Time"}
+    assert clock.calls() == [("GET", "/api/v1/device"), ("GET", "/api/v1/capabilities")]
 
 
-def test_an_esp32_awtrix_ng_is_not_a_tc002(clock, make_plugin):
-    clock.board_type = "awtrixng"
+def test_a_tc002_is_refused_and_pointed_at_its_plugin(clock, make_plugin):
+    clock.board_type = "tc002"
     result = make_plugin().check_connection()
     assert not result.success and result.failure == "bad_response"
-    assert "not a TC002" in result.message
+    assert result.message == f"{clock.host} is a Ulanzi TC002, not a TC001."
+    assert "Use the Ulanzi TC002 (AWTRIX NG) display instead." in result.troubleshooting
+    assert ("GET", "/api/v1/capabilities") not in clock.calls()
+
+
+def test_a_wider_esp32_build_is_refused(clock, make_plugin):
+    clock.panel_width = 64
+    result = make_plugin().check_connection()
+    assert not result.success and result.failure == "bad_response"
+    assert result.message == (
+        f"{clock.host} is an AWTRIX NG clock 64 pixels wide; this display draws on the TC001's 32 x 8."
+    )
+
+
+def test_two_panels_of_32_are_a_wider_build_too(clock, make_plugin):
+    clock.panels = 2
+    assert "64 pixels wide" in make_plugin().check_connection().message
+
+
+def test_an_unknown_board_type_is_not_like_awtrix_ng(clock, make_plugin):
+    clock.board_type = "esp8266"
+    result = make_plugin().check_connection()
+    assert not result.success and result.message.endswith("answered, but not like AWTRIX NG.")
+
+
+@pytest.mark.parametrize("fault", ["http_500", "no_display", "not_json"])
+def test_capabilities_that_fail_are_handled_like_a_bad_device_answer(clock, make_plugin, fault):
+    if fault == "http_500":
+        clock.fail_paths = ("/api/v1/capabilities",)
+    else:
+        clock.capabilities_fault = fault
+    result = make_plugin().check_connection()
+    assert not result.success and result.failure == "bad_response"
+    assert result.message == f"{clock.host} answered, but not like AWTRIX NG."
 
 
 @pytest.mark.parametrize(
@@ -112,5 +146,3 @@ def test_no_address_or_no_answer_has_no_news(clock, make_plugin):
     assert make_plugin(host="").poll_device() is None
     assert make_plugin(host="127.0.0.1:9").poll_device() is None
 
-
-pytestmark = __import__("pytest").mark.skip(reason="rewritten in Task 7")

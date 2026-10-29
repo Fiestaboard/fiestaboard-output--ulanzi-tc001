@@ -32,7 +32,7 @@ def _uniform_grids() -> dict[bytes, tuple[tuple[int, ...], ...]]:
 
 
 def decode(payload):
-    if not isinstance(payload, dict) or "layout" not in payload:
+    if not isinstance(payload, dict) or "draw" not in payload:
         return None
     found = _uniform_grids().get(MockAwtrix.bitmap(payload))
     return None if found is None else [list(row) for row in found]

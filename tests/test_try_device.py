@@ -28,7 +28,12 @@ def test_it_shows_a_still_then_one_change_and_reports_every_request(clock, tmp_p
     assert paths[0] == ("GET", "/api/v1/device")
     assert ("PUT", PUSHED + "Try") in paths and ("PUT", ACTIVE) in paths
     assert all("bytes" in c for c in report["calls"] if c["path"].startswith(PUSHED))
+    assert "32 x 8" in out.getvalue()
     assert "AWTRIX NG at" in out.getvalue()
+    # 32 x 8 frames: one plain bitmap draw each, 768 bytes of RGB888.
+    frames = [clock.bitmap(body) for body in clock.pushes()]
+    assert frames and all(len(f) == 32 * 8 * 3 for f in frames)
+    assert all("layout" not in body for body in clock.pushes())
 
     target = tmp_path / "report.json"
     assert tool.main(["--host", clock.host, "--pause", "0", "--json", str(target)]) == 0
@@ -40,5 +45,3 @@ def test_it_fails_when_the_clock_does(clock):
     tool = load_tool()
     assert tool.main(["--host", clock.host, "--pause", "0", "--user", "admin", "--password", "x"]) == 1
 
-
-pytestmark = __import__("pytest").mark.skip(reason="rewritten in Task 7")

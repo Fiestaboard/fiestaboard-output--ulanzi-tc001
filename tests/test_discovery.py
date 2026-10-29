@@ -59,7 +59,31 @@ def test_a_sweep_finds_the_clock_and_labels_it(clock):
         other.stop()
     assert len(found) == 1
     assert found[0]["host"] == f"{ip}:{port}"
-    assert found[0]["label"] == f"awtrixng-ab34cd at {ip} (TC002)"
+    assert found[0]["label"] == f"awtrixng-ab34cd at {ip} (TC001)"
+
+
+@pytest.mark.parametrize("fault", ["tc002", "wide", "capabilities_500", "no_display"])
+def test_a_sweep_lists_only_a_32_wide_awtrix_ng(clock, fault):
+    if fault == "tc002":
+        clock.board_type = "tc002"
+    elif fault == "wide":
+        clock.panel_width = 64
+    elif fault == "capabilities_500":
+        clock.fail_paths = ("/api/v1/capabilities",)
+    else:
+        clock.capabilities_fault = "no_display"
+    assert sweep(OutputHttp(), [clock.server.server_address[:2]], per_host_s=0.5) == []
+
+
+def test_only_a_host_that_answered_as_awtrix_ng_gets_the_second_request(clock):
+    clock.mode = "other_json"
+    sweep(OutputHttp(), [clock.server.server_address[:2]], per_host_s=0.5)
+    assert clock.calls() == [("GET", "/api/v1/device")]
+    clock.clear()
+    clock.mode = "ok"
+    clock.board_type = "tc002"
+    sweep(OutputHttp(), [clock.server.server_address[:2]], per_host_s=0.5)
+    assert clock.calls() == [("GET", "/api/v1/device")]
 
 
 def test_find_my_clock_reports_what_it_found(clock, make_plugin, monkeypatch):
@@ -110,5 +134,3 @@ def test_core_discover_hook_sweeps_the_hint(clock, monkeypatch):
     assert seen["networks"] == nets("192.168.5.0/24", "10.1.2.0/24")
     assert [d["ip"] for d in found] == [ip]
 
-
-pytestmark = __import__("pytest").mark.skip(reason="rewritten in Task 7")
