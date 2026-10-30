@@ -59,7 +59,7 @@ jobs:
         with:
           repository: Fiestaboard/FiestaBoard
           # Released compatibility plus the exact main-based native playlist candidate.
-          ref: ${{ matrix.core == 'native-candidate' && '511cad3d45655974a73e442925c99942669d040c' || inputs.core_ref || 'v10.2.0' }}
+          ref: ${{ matrix.core == 'native-candidate' && 'ff3856cb47327630ddfbff195e0f0636154b10cc' || inputs.core_ref || 'v10.2.0' }}
           path: fiestaboard-core
 
       - uses: actions/setup-python@v5
