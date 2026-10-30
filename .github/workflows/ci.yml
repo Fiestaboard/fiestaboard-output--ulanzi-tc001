@@ -58,21 +58,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Fiestaboard/FiestaBoard
-          # First released core with the TC001 small-LED floor and UI support.
-          ref: ${{ inputs.core_ref || 'v10.2.0' }}
+          # Released compatibility plus the exact main-based native playlist candidate.
+          ref: ${{ matrix.core == 'native-candidate' && '511cad3d45655974a73e442925c99942669d040c' || inputs.core_ref || 'v10.2.0' }}
           path: fiestaboard-core
-
-      - name: Apply pinned native playlist candidate to the released geometry baseline
-        if: matrix.core == 'native-candidate'
-        working-directory: fiestaboard-core
-        # Core PR #2393 targets next, which predates 10.2.0's small LED support.
-        # Apply only its reviewed source delta; never follow a mutable branch.
-        # pages/service.py's display-context fix is already present in 10.2.0.
-        run: |
-          git fetch --no-tags origin 77d757e6b71c5a6d18a998cbffba5a781c4525b4
-          git diff 5aabc252ab23ec76da4756b94bfca5af4542d301 77d757e6b71c5a6d18a998cbffba5a781c4525b4 -- src ':!src/pages/service.py' > /tmp/native-playlist.patch
-          git apply --check /tmp/native-playlist.patch
-          git apply /tmp/native-playlist.patch
 
       - uses: actions/setup-python@v5
         with:
