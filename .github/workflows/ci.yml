@@ -21,17 +21,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Tests and output conformance
+  settings-ui:
+    name: Device settings UI
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Fiestaboard/FiestaBoard
+          ref: v10.2.0
+          path: fiestaboard-core
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install existing core UI dependencies
+        working-directory: fiestaboard-core/web
+        run: npm ci --legacy-peer-deps
+      - name: Test plugin manifest in the real settings form
+        env:
+          TC001_PLUGIN_DIR: ${{ github.workspace }}
+        run: |
+          cp tests/ui/firmware-transition-fields.test.tsx fiestaboard-core/web/src/__tests__/tc001-firmware-transition-fields.test.tsx
+          cd fiestaboard-core/web
+          npx vitest run src/__tests__/tc001-firmware-transition-fields.test.tsx
+
+  test:
+    name: Tests and output conformance (${{ matrix.core }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        core: [released, native-candidate]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/checkout@v4
         with:
           repository: Fiestaboard/FiestaBoard
-          # First released core with the TC001 small-LED floor and UI support.
-          ref: ${{ inputs.core_ref || 'v10.2.0' }}
+          # Released compatibility plus the exact main-based native playlist candidate.
+          ref: ${{ matrix.core == 'native-candidate' && 'ff3856cb47327630ddfbff195e0f0636154b10cc' || inputs.core_ref || 'v10.2.0' }}
           path: fiestaboard-core
 
       - uses: actions/setup-python@v5
@@ -48,4 +76,9 @@ jobs:
       # The tests include core's OutputConformanceSuite run against this
       # plugin; the network fence allows loopback only.
       - name: Run tests (loopback only) with the conformance suite
-        run: ./run_tests.sh fiestaboard-core
+        run: |
+          if [ '${{ matrix.core }}' = 'released' ]; then
+            ./run_tests.sh fiestaboard-core --no-cov
+          else
+            ./run_tests.sh fiestaboard-core
+          fi

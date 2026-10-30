@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 — unreleased
+
+- Device-instance firmware transition controls: explicit opt-in for effect,
+  direction, duration and automatic rotation, capability validation and readback.
+  Blank fields preserve device values; zero/off remain explicit choices.
+
+- Optional per-board native collection rotation for cores with the native
+  playlist SDK. Timed collections become ordered firmware slots; left/right
+  navigation survives background content refreshes.
+- Stable owned slot identities, actual selected-page feedback, staged updates,
+  persistent-order retries, reboot/missing-slot recovery and capacity-aware opt-out.
+- Preserve other apps and their disabled state. Default mode remains available
+  on core 10.2.0; selecting native mode on an older core reports upgrade guidance.
+- Native behavior is covered by loopback firmware tests. Physical button and
+  installed native-mode validation await a released supporting core.
+
 ## 0.1.0 — unreleased
 
 First version: shows FiestaBoard pages on a Ulanzi TC001 (32 × 8) running

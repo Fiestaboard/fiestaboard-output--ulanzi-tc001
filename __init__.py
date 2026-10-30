@@ -68,6 +68,9 @@ from typing import Any
 
 import requests
 
+from .native_rotation import NativeRotation
+from .firmware_transitions import FirmwareTransitions
+
 from src.plugins import (
     ActionOutcome,
     BoardToken,
@@ -96,6 +99,11 @@ try:
     from src.plugins import DevicePoll
 except ImportError:  # a core before the poll_device hook never polls: nothing to report
     DevicePoll = None  # type: ignore[assignment,misc]
+
+try:
+    from src.plugins import NativePageSelection
+except ImportError:  # legacy output remains usable on released core
+    NativePageSelection = None
 
 logger = logging.getLogger(__name__)
 
@@ -411,6 +419,8 @@ class AwtrixNGTC001(OutputPluginBase):
         self._upload_failed = False
         #: The clock's ``uptimeSeconds`` last seen, and ``time.monotonic()`` then.
         self._uptime: tuple[float, float] | None = None
+        self._native = NativeRotation(self)
+        self._firmware = FirmwareTransitions(self)
 
     # --- identity --------------------------------------------------------------------------
 
@@ -520,11 +530,20 @@ class AwtrixNGTC001(OutputPluginBase):
         """One frame pushed, as a write verdict; ``None`` when it landed."""
         if cancel.cancelled:
             return WriteResult(True, False)
+        if self.config.get("native_rotation") is True and NativePageSelection is None:
+            logger.warning("Upgrade FiestaBoard to a core with native collection rotation, or turn the option off")
+            return WriteResult(False, False)
         try:
+            self._firmware.apply(cancel)
+            self._native.prepare_legacy(cancel)
+            if cancel.cancelled:
+                return WriteResult(True, False, superseded=True)
             self._request("PUT", PUSHED_PATH + self.app_name, json=self._payload(pixels))
+            if not self._native.legacy_checked:
+                self._native.retire(cancel)
         except RequestCancelled:
             # Core's cancel scope refused the request: preempted, not failed.
-            return WriteResult(True, False)
+            return WriteResult(True, False, superseded=True)
         except Exception as exc:
             logger.warning("AWTRIX %s: push failed: %s", self.host or "(no address)", exc)
             self._upload_failed = True
@@ -565,6 +584,14 @@ class AwtrixNGTC001(OutputPluginBase):
         """
         if not frames:
             return WriteResult(True, False)
+        try:
+            self._firmware.apply(cancel)
+        except RequestCancelled:
+            return WriteResult(True, False, superseded=True)
+        except Exception as exc:
+            logger.warning("AWTRIX firmware transition settings failed: %s", exc)
+            self._upload_failed = True
+            return WriteResult(False, False)
         visible = self._switch_to_board(cancel) if self.show_on_change else self._on_screen(cancel)
         if not visible:
             frames, holds_s = frames[-1:], holds_s[-1:]
@@ -620,6 +647,23 @@ class AwtrixNGTC001(OutputPluginBase):
         return float(min(rate, STREAM_MAX_FPS)) if isinstance(rate, (int, float)) and rate > 0 else STREAM_MAX_FPS
 
     # --- writes --------------------------------------------------------------------------------
+
+    def sync_native_playlist(self, playlist: Any, *, cancel: CancelToken) -> WriteResult:
+        """Synchronize owned native apps; ordinary refreshes never select an app."""
+        if cancel.cancelled:
+            return WriteResult(True, False, superseded=True)
+        if self.config.get("native_rotation") is not True:
+            return WriteResult(False, False)
+        try:
+            sent = self._native.sync(playlist, cancel)
+        except RequestCancelled:
+            return WriteResult(True, False, superseded=True)
+        except Exception as exc:
+            logger.warning("AWTRIX native rotation failed: %s", exc)
+            self._upload_failed = True
+            return WriteResult(False, False)
+        self._upload_failed = False
+        return WriteResult(True, sent)
 
     def write(self, frame: CellFrame, *, native: Any, cancel: CancelToken) -> WriteResult:
         return self._still(self.render(frame), cancel)
@@ -743,13 +787,32 @@ class AwtrixNGTC001(OutputPluginBase):
             return None
         before = self._uptime
         try:
-            self._device_state()
+            state = self._device_state()
         except Exception:
             return None
         restarted = False
         if before is not None and self._uptime is not None and self._uptime is not before:
             (was, seen_at), (now, now_at) = before, self._uptime
             restarted = now < was + (now_at - seen_at) - UPTIME_SLACK_S
+        selection = None
+        if self._native.reference is not None:
+            try:
+                rows = self._native.inventory(CancelToken())
+                present = {row["name"] for row in rows if row["present"]}
+                restarted = restarted or bool(set(self._native.pages) - present)
+            except Exception:
+                return None
+            if NativePageSelection is not None:
+                selection = NativePageSelection(self._native.pages.get(state.get("currentApp")))
+        if restarted:
+            self._native.payloads.clear()
+            self._native.validated = False
+            self._native.order_confirmed = False
+            self._firmware.confirmed = False
+        if selection is not None:
+            recover = restarted or self._upload_failed
+            self._upload_failed = False
+            return DevicePoll(restarted=recover, native_selection=selection)
         if not (restarted or self._upload_failed):
             return None
         logger.info(
@@ -761,6 +824,9 @@ class AwtrixNGTC001(OutputPluginBase):
         return DevicePoll(restarted=True)
 
     def check_connection(self) -> ConnectionCheck:
+        if self.config.get("native_rotation") is True and NativePageSelection is None:
+            return self._failed("bad_response", "Upgrade FiestaBoard to use native collection rotation.",
+                                "Native playlist SDK is unavailable", "Turn native collection rotation off on older core.")
         where = self.host or "the clock"
         try:
             body = self._device_state()
@@ -794,7 +860,17 @@ class AwtrixNGTC001(OutputPluginBase):
             )
         details = {key: body[key] for key in ("version", "hostname", "currentApp") if key in body}
         version = f" (AWTRIX NG {body['version']})" if body.get("version") else ""
-        return ConnectionCheck(success=True, message=f"Connected to the TC001 at {where}{version}.", details=details)
+        message = f"Connected to the TC001 at {where}{version}."
+        if self.config.get("firmware_transition_override") is True:
+            try:
+                _, current = self._firmware.inspect(None)
+            except Exception as exc:
+                return self._failed("bad_response", f"Firmware transition settings: {exc}", str(exc),
+                                    "Choose settings advertised by this device, or turn the override off.")
+            keys = ("transitionEffect", "transitionDirection", "transitionDurationMs", "autoTransition")
+            details["firmware_transitions"] = {key: current.get(key) for key in keys}
+            message += f" Firmware transitions: {current.get('transitionEffect')}, {current.get('transitionDurationMs')} ms, {current.get('transitionDirection')}; automatic rotation {'on' if current.get('autoTransition') else 'off'}."
+        return ConnectionCheck(success=True, message=message, details=details)
 
     def _classify(self, exc: Exception) -> ConnectionCheck:
         """The failed check for what went wrong on either read (device, capabilities)."""

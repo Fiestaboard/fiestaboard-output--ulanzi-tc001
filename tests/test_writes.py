@@ -29,7 +29,7 @@ def test_a_still_is_one_push_of_one_app(clock, make_plugin):
     result = make_plugin(show_on_change=False).write(grid(1), native=None, cancel=CancelToken())
 
     assert (result.success, result.was_sent) == (True, True)
-    assert clock.calls() == [("PUT", PUSHED + "FiestaBoard")]
+    assert clock.calls() == [("GET", "/api/v1/apps"), ("PUT", PUSHED + "FiestaBoard")]
     body = clock.pushes()[0]
     assert MockAwtrix.bitmap(body) == render(grid(1))
     assert len(MockAwtrix.bitmap(body)) == PANEL_WIDTH * PANEL_HEIGHT * 3 == 768
@@ -94,7 +94,7 @@ def test_show_on_change_switches_to_the_board_after_a_still(clock, make_plugin):
     result = make_plugin().write_cells(cells(2), native=None, cancel=CancelToken())
 
     assert result.was_sent
-    assert clock.calls() == [("PUT", PUSHED + "FiestaBoard"), ("PUT", ACTIVE)]
+    assert clock.calls() == [("GET", "/api/v1/apps"), ("PUT", PUSHED + "FiestaBoard"), ("PUT", ACTIVE)]
     assert clock.switches() == [{"name": "FiestaBoard", "fast": True}]
     assert clock.current_app == "FiestaBoard"
 
@@ -102,14 +102,14 @@ def test_show_on_change_switches_to_the_board_after_a_still(clock, make_plugin):
 def test_the_app_name_and_display_time_come_from_the_settings(clock, make_plugin):
     make_plugin(app_name="Board_2", duration_s=30).write(grid(1), native=None, cancel=CancelToken())
 
-    assert clock.calls()[0] == ("PUT", PUSHED + "Board_2")
+    assert ("PUT", PUSHED + "Board_2") in clock.calls()
     assert clock.pushes()[0]["durationMs"] == 30_000
     assert clock.switches() == [{"name": "Board_2", "fast": True}]
 
 
 def test_an_invalid_app_name_falls_back_to_the_default(clock, make_plugin):
     make_plugin(app_name="not a name!", show_on_change=False).write(grid(1), native=None, cancel=CancelToken())
-    assert clock.calls() == [("PUT", PUSHED + "FiestaBoard")]
+    assert clock.calls() == [("GET", "/api/v1/apps"), ("PUT", PUSHED + "FiestaBoard")]
 
 
 def test_basic_auth_is_sent_when_set(clock, make_plugin):
@@ -169,7 +169,7 @@ def test_a_board_not_there_yet_gets_the_new_page_and_then_the_switch(clock, make
     result = make_plugin().write_transition(cells(1), cells(2), transition("flip"), cancel=CancelToken())
 
     assert result.was_sent
-    assert clock.calls() == [("PUT", ACTIVE), ("PUT", PUSHED + "FiestaBoard"), ("PUT", ACTIVE)]
+    assert clock.calls() == [("PUT", ACTIVE), ("GET", "/api/v1/apps"), ("PUT", PUSHED + "FiestaBoard"), ("PUT", ACTIVE)]
     assert MockAwtrix.bitmap(clock.pushes()[0]) == render(grid(2))
     assert clock.current_app == "FiestaBoard"
 
