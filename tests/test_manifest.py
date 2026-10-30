@@ -18,7 +18,7 @@ def test_the_manifest_loads_as_an_output_plugin():
     assert _ERRORS == []
     assert MANIFEST.id == "ulanzi_tc001"
     assert MANIFEST.name == "Ulanzi TC001 (AWTRIX NG)"
-    assert MANIFEST.version == "0.1.0"
+    assert MANIFEST.version == "0.2.0"
     assert MANIFEST.plugin_type == "output"
     assert _MANIFEST_JSON["fiestaboard_version"] == ">=10.2.0"
 
@@ -73,6 +73,7 @@ def test_only_the_password_is_secret():
         "host",
         "app_name",
         "show_on_change",
+        "native_rotation",
         "duration_s",
         "font",
         "tile_gap",

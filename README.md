@@ -90,12 +90,49 @@ transition (flip, slide, wipe, fade) to move between pages.
 | Clock address | — | IP address or local name, as `192.0.2.60` or `awtrixng-a1b2c3.local`. |
 | App name | `FiestaBoard` | The app's name in the rotation. Letters, digits, `-` and `_`, at most 32. |
 | Show on change | on | Switch the clock to the board whenever its page changes. |
+| Native collection rotation | off | Let AWTRIX rotate timed collection pages and navigate them with its buttons. Requires a core with native playlist support; released 10.2.0 supports the default mode only. |
 | Display time | the clock's | Seconds the board stays on screen in the rotation. |
 | Text size | Small — 8 characters | Or Large — 5 characters. |
 | Tile style | Gaps | Seamless lights the line between two tiles of the same colour. |
 | Block padding | Off | 1 pixel grows highlighted text's background by a pixel on every side. |
 | Fade style | Through black | Or Blend. |
 | User name, Password | — | Only when the clock's web UI asks for a password. Stored as a secret. |
+
+## Native collection rotation (optional)
+
+With a core that supports native playlists, enable **Native collection rotation**
+in this board's settings. An active single page becomes one native slot; a timed
+collection becomes one slot per member, in collection order with the collection's
+display interval. Left/right buttons select the previous/next native app, and
+AWTRIX supplies transitions. Random and rule collections keep FiestaBoard's normal
+rotation. **Show on change** applies to normal output, not background native refreshes.
+
+FiestaBoard refreshes pixels without switching away from the app you selected.
+It reports the selected member after the next device poll. Data sources retain
+their own refresh cadence, including hourly generated art; changing slots does
+not generate another image. Pausing FiestaBoard stops updates but does not stop
+the clock's autonomous rotation. Notifications and on-demand firmware scripts can
+temporarily take over navigation.
+
+Slots have stable `fb_<board hash>_<page hash>` names. FiestaBoard manages those
+slots' order and enabled state; edit their collection in FiestaBoard. Other apps,
+their relative order, and disabled native apps such as Battery are preserved.
+New slots stay disabled until their upload completes. Turning the option off or
+switching to normal output removes only this board's native slots. The clock has
+a shared limit of 50 pushed apps; if the new collection cannot fit without
+discarding existing content, synchronization fails and retries after space is freed.
+Opting out at full capacity first retires this board's native slots to make room
+for the normal slot. If that replacement upload fails, a later retry restores it;
+unrelated apps are never deleted to make space.
+
+Pushed content lives in RAM. FiestaBoard restores missing slots after a reboot or
+reconnection; order and disabled names are persistent. Updates are not a firmware
+transaction, so interrupted updates may temporarily leave disabled reserved names;
+the next successful sync reconciles them. Do not reuse FiestaBoard's managed slot
+names for scripts or other senders. Existing installations keep the default mode.
+The first normal write after startup reads the app inventory to reconcile any
+owned slots left by an earlier native session. A failed persistent order save is
+retried even when the clock already shows the requested order in RAM.
 
 ## Find my clock
 
