@@ -67,6 +67,9 @@ class MockAwtrix:
         self.unsaved_order_once = False
         self.saved_order: list[str] = []
         self.saved_disabled: list[str] = []
+        self.transitions = ["Random", "Slide", "Fade", "Rain"]
+        self.settings = {"autoTransition": True, "transitionEffect": "Rain", "transitionDirection": "normal", "transitionDurationMs": 1000}
+        self.ignore_settings_patch = False
         self.current_app = "Time"
         self._booted = time.monotonic()
         self.uptime_offset = 1000.0
@@ -98,7 +101,7 @@ class MockAwtrix:
                 self.end_headers()
                 self.wfile.write(payload)
 
-            do_GET = do_PUT = do_POST = do_DELETE = _handle  # noqa: N815 - http.server API
+            do_GET = do_PUT = do_POST = do_DELETE = do_PATCH = _handle  # noqa: N815 - http.server API
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.server.daemon_threads = True
@@ -196,9 +199,13 @@ class MockAwtrix:
                 return 200, {"features": {}}
             if self.capabilities_fault == "not_json":
                 return 200, b"<html>no</html>"
-            return 200, {"display": {"width": self.panel_width * self.panels, "height": 8}}
+            return 200, {"display": {"width": self.panel_width * self.panels, "height": 8}, "transitions": self.transitions}
         if method == "GET" and path == SETTINGS:
-            return 200, {"panelWidth": self.panel_width, "panels": self.panels}
+            return 200, {"panelWidth": self.panel_width, "panels": self.panels, **self.settings}
+        if method == "PATCH" and path == SETTINGS:
+            if not self.ignore_settings_patch:
+                self.settings.update(body)
+            return 200, dict(self.settings)
         if method == "GET" and path == "/api/v1/apps":
             names = self.order + [n for n in self.builtins + list(self.apps) if n not in self.order]
             names += [n for n in self.disabled if n not in names]

@@ -127,6 +127,7 @@ class NativeRotation:
             desired.append(name)
             payloads[name] = payload
             pages[name] = entry.page_id
+        self.plugin._firmware.apply(cancel)
         rows = self.inventory(cancel)
         owned = self._owned(rows)
         present = {row["name"] for row in rows if row["present"]}

@@ -2,6 +2,10 @@
 
 ## 0.2.0 — unreleased
 
+- Device-instance firmware transition controls: explicit opt-in for effect,
+  direction, duration and automatic rotation, capability validation and readback.
+  Blank fields preserve device values; zero/off remain explicit choices.
+
 - Optional per-board native collection rotation for cores with the native
   playlist SDK. Timed collections become ordered firmware slots; left/right
   navigation survives background content refreshes.

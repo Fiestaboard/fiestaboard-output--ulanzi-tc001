@@ -91,6 +91,10 @@ transition (flip, slide, wipe, fade) to move between pages.
 | App name | `FiestaBoard` | The app's name in the rotation. Letters, digits, `-` and `_`, at most 32. |
 | Show on change | on | Switch the clock to the board whenever its page changes. |
 | Native collection rotation | off | Let AWTRIX rotate timed collection pages and navigate them with its buttons. Requires a core with native playlist support; released 10.2.0 supports the default mode only. |
+| Override firmware transitions | off | Apply the selected firmware controls to the whole clock, including other native apps. |
+| Firmware transition effect / direction | Use device settings | Supported firmware effect and normal/reverse motion; does not reorder apps. |
+| Firmware transition duration (ms) | blank | Blank leaves it alone; `0` switches instantly. |
+| Automatic firmware rotation | Use device settings | On/off controls the native app loop; off still allows buttons and API navigation. |
 | Display time | the clock's | Seconds the board stays on screen in the rotation. |
 | Text size | Small — 8 characters | Or Large — 5 characters. |
 | Tile style | Gaps | Seamless lights the line between two tiles of the same colour. |
@@ -136,6 +140,26 @@ names for scripts or other senders. Existing installations keep the default mode
 The first normal write after startup reads the app inventory to reconcile any
 owned slots left by an earlier native session. A failed persistent order save is
 retried even when the clock already shows the requested order in RAM.
+
+## Firmware transition controls
+
+These controls are on each TC001 device instance's settings form. Leave **Override
+firmware transitions** off to use the clock's settings. With it on, **Use device
+settings** for effect/direction and a blank duration still leave those values unchanged. Zero duration
+and automatic rotation **Off** are explicit choices, not empty values. The plugin
+validates the device and its advertised effects, patches only selected settings,
+and reads them back before reporting success. **Test connection** reports the
+current firmware values without applying the proposed override.
+
+AWTRIX NG 1.2.2 exposes these through `GET`/`PATCH /api/v1/settings`. They are
+device-wide, not per-page: avoid competing overrides from multiple instances
+pointing at the same clock. Native collection mode uses these firmware animations
+between apps. In normal mode, FiestaBoard's page animation remains separate; its
+immediate native-app selection prevents a second firmware animation on that switch.
+Turning the override off relinquishes control and leaves the last saved device
+values in place; it does not restore a historical snapshot. Overrides are checked
+again after a detected reboot. Failed updates/readback are retried and reported
+as output errors. No live transition settings were changed during development.
 
 ## Find my clock
 
