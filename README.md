@@ -106,6 +106,9 @@ collection becomes one slot per member, in collection order with the collection'
 display interval. Left/right buttons select the previous/next native app, and
 AWTRIX supplies transitions. Random and rule collections keep FiestaBoard's normal
 rotation. **Show on change** applies to normal output, not background native refreshes.
+Leave AWTRIX's automatic app rotation enabled and **Block buttons** off to use
+both timed rotation and physical navigation. The plugin preserves these global
+firmware settings and its transition choice.
 
 FiestaBoard refreshes pixels without switching away from the app you selected.
 It reports the selected member after the next device poll. Data sources retain
